@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef } from 'react'
 import { ArrowUpRight, Info, X } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import { Button } from '@/components/ui/button'
@@ -116,7 +116,20 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="text-xl leading-tight">{club.name}</h3>
-          {meta.length > 0 && <p className="text-xs text-muted-foreground">{meta.join(' · ')}</p>}
+          {meta.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {/* the dot stays attached to the item before it, so a wrapped line never starts with "·" */}
+              {meta.map((item, i) => (
+                <Fragment key={item}>
+                  {i > 0 && ' '}
+                  <span className="whitespace-nowrap">
+                    {item}
+                    {i < meta.length - 1 && ' ·'}
+                  </span>
+                </Fragment>
+              ))}
+            </p>
+          )}
         </div>
         <Button
           variant="ghost"
