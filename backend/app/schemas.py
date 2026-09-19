@@ -7,16 +7,41 @@ class RecommendRequest(BaseModel):
     blurb: str
 
 
+class EventLite(BaseModel):
+    """An event as the graph and club cards render it.
+
+    Mirrors frontend/src/types.js EventLite. Deliberately narrower than the Event
+    row: no description, no confidence, and above all no organizer or contact
+    fields (the privacy rule in CLAUDE.md).
+    """
+
+    id: str
+    title: str
+    start: datetime | None  # UTC; serialized as an ISO string
+    location: str | None = None
+    source: str  # sop | dropbox
+    source_file: str | None = None
+    dropbox_link: str | None = None
+
+
 class ClubMatch(BaseModel):
     id: str
     name: str
     summary: str | None
-    outcomes: list[str]
+    outcomes: list[str]  # from enrichment, 1-3 of FIXED_OUTCOMES
     tags: list[str]
+    commitment: str | None  # casual | moderate | intense | unknown
     why_it_fits: str
+    last_updated: datetime | None
+    next_event: EventLite | None  # soonest upcoming published event, if any
 
 
 class RecommendResponse(BaseModel):
+    """`outcomes` describes the STUDENT (what the blurb asked for) and becomes the
+    middle layer of the personal graph; each club's own `outcomes` come from
+    enrichment. The frontend builds the graph itself from these two fields
+    (lib/buildGraph.js), so no graph is returned here."""
+
     outcomes: list[str]
     clubs: list[ClubMatch]
 

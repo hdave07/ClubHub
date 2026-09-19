@@ -93,37 +93,109 @@ def already_ingested(session: Session, file: InboxFile) -> bool:
     return existing is not None
 
 
-def _find_existing_event(session: Session, club_id: str, title: str, start) -> Event | None:
-    """An event we already hold for this club at this title and time.
+def _find_existing_event(
+    session: Session,
+    club_id: str,
+    title: str,
+    start,
+    source_file: str | None = None,
+    exclude: set[str] | None = None,
+    is_reschedule: bool = False,
+) -> Event | None:
+    """The stored row this extracted event should update, or None to create one.
 
-    Guards the case where a club re-uploads a corrected poster: the file hash
-    changed so we reprocess it, but the event on it is the same event. Without
-    this the demo feed shows the same workshop twice.
+    Three things count as "the same event":
 
-    Titles are compared fuzzily, not exactly, because the model does not
-    transcribe punctuation identically across runs -- the same poster produced
-    "Fall Hiking Trip - Rattlesnake Point" and "Fall Hiking Trip: Rattlesnake
-    Point" on two passes. Matching on club + exact start and then confirming the
-    title is close enough is the reliable combination: two genuinely different
-    events from one club starting the same minute is implausible, while a
-    similarity floor still stops a merge of unrelated titles.
+    1. **Same club, same start, near-identical title.** The ordinary case: the
+       same poster read twice. Titles are compared fuzzily because the model does
+       not transcribe punctuation identically across runs -- one poster produced
+       "Fall Hiking Trip - Rattlesnake Point" and "Fall Hiking Trip: Rattlesnake
+       Point" on two passes. Two genuinely different events from one club
+       starting the same minute is implausible, so club+start is a safe key, and
+       the similarity floor stops unrelated titles merging.
+
+    2. **Same club, same source document, near-identical title, DIFFERENT
+       start.** A club correcting a date by re-uploading the same file: it was
+       edited, its content hash changed, we re-read it, and it now says a
+       different day. Without this the old date stays on the live feed forever
+       beside the new one.
+
+    3. **Same club, near-identical title, DIFFERENT file, but the poster
+       explicitly says it's a reschedule.** A club can also fix a mistake by
+       posting a brand new image rather than editing the old one -- provenance
+       alone can't tell that apart from next week's ordinary meetup, since both
+       look like "same club, similar title, different file, different date."
+       The deciding signal is textual: extraction.py asks Claude whether the
+       document itself uses reschedule language ("RESCHEDULED", "NEW DATE",
+       "corrected to..."), the same way a person reading the poster would know.
+       Only when that's true do we search across files at all -- an ordinary
+       recurring announcement with no such language still gets its own row.
+
+    Provenance (tiers 1-2) is the default; the explicit signal (tier 3) is the
+    deliberately narrow exception, because a false positive there means the
+    weekly-meetup case above wrongly collapses into one row every week.
+
+    `exclude` holds rows already claimed earlier in this same extraction, so a
+    poster that legitimately lists one event on two dates ("Auditions Oct 3 and
+    Oct 5") writes two rows rather than the second overwriting the first.
     """
+    exclude = exclude or set()
+
+    def matches(candidate: Event) -> bool:
+        return (
+            candidate.id not in exclude
+            and fuzz.token_set_ratio(_title_key(title), _title_key(candidate.title)) >= 85
+        )
+
     if start is None:
         # No time to key on -- fall back to an exact title match within the club.
-        return session.exec(
-            select(Event).where(
-                Event.club_id == club_id,
-                Event.title == title,
-                Event.start.is_(None),
-            )
-        ).first()
+        return next(
+            (
+                c
+                for c in session.exec(
+                    select(Event).where(
+                        Event.club_id == club_id,
+                        Event.title == title,
+                        Event.start.is_(None),
+                    )
+                ).all()
+                if c.id not in exclude
+            ),
+            None,
+        )
 
-    candidates = session.exec(
+    same_slot = session.exec(
         select(Event).where(Event.club_id == club_id, Event.start == start)
     ).all()
-    for candidate in candidates:
-        if fuzz.token_set_ratio(_title_key(title), _title_key(candidate.title)) >= 85:
+    for candidate in same_slot:
+        if matches(candidate):
             return candidate
+
+    if source_file:
+        same_document = session.exec(
+            select(Event).where(
+                Event.club_id == club_id, Event.source_file == source_file
+            )
+        ).all()
+        for candidate in same_document:
+            if matches(candidate):
+                return candidate
+
+    if is_reschedule:
+        # Only reached when the document itself said this is a correction. Search
+        # every event for this club regardless of file or date -- take the best
+        # title match rather than the first, since a club can have more than one
+        # near-namesake event ("Weekly Practice" vs "Weekly Practice: Finals").
+        all_club_events = session.exec(select(Event).where(Event.club_id == club_id)).all()
+        scored = [
+            (fuzz.token_set_ratio(_title_key(title), _title_key(c.title)), c)
+            for c in all_club_events
+            if c.id not in exclude
+        ]
+        scored = [(score, c) for score, c in scored if score >= 85]
+        if scored:
+            return max(scored, key=lambda pair: pair[0])[1]
+
     return None
 
 
@@ -201,10 +273,27 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
         dropbox_link = None
 
     written: list[Event] = []
+    claimed: set[str] = set()
+    reschedules: list[str] = []
     for item in extraction.events:
-        existing = _find_existing_event(session, club.id, item.title, item.start)
+        existing = _find_existing_event(
+            session,
+            club.id,
+            item.title,
+            item.start,
+            file.name,
+            claimed,
+            item.is_reschedule,
+        )
+        if existing is not None and item.is_reschedule and existing.source_file != file.name:
+            reschedules.append(
+                f"{item.title!r}: {existing.start} -> {item.start} "
+                f"(was {existing.source_file}, now {file.name})"
+            )
         event = existing or Event(club_id=club.id, title=item.title)
 
+        # Set on update too: a corrected poster may have reworded the title.
+        event.title = item.title
         event.start = item.start
         event.end = item.end
         event.location = item.location
@@ -218,6 +307,7 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
 
         session.add(event)
         session.flush()  # assign the id before we snapshot it
+        claimed.add(event.id)
         written.append(event)
 
     _log(
@@ -231,6 +321,7 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
             "events": [e.title for e in written],
             "confidence": extraction.confidence,
             "uncertainties": extraction.uncertainties,
+            "reschedules": reschedules,
         },
     )
 
