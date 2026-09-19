@@ -30,10 +30,11 @@ Current state: **backend mostly built, frontend in progress.** `sop_sync`,
 `enrichment`, `enrichment_batch`, `embeddings`, `dropbox_store`, `dropbox_watcher`,
 `extraction`, `matcher`, and `ingest` are all implemented. What's still open:
 
-- **`POST /api/recommend` is the one remaining stub** (`app/routers/recommend.py`
-  returns an empty club list). Everything it needs already exists —
-  `embeddings.query_clubs(blurb, top_k=20)` does the vector search; what's missing is
-  the Claude rerank + "why it fits" step.
+- **`POST /api/recommend` is implemented** (`app/routers/recommend.py`):
+  `embeddings.query_clubs()` for the ~20 nearest candidates, then
+  `app/services/reranker.py` (Sonnet, forced tool use) narrows to 5-8 and writes a
+  "why it fits" line per club, plus the student's own outcomes for the graph's
+  middle layer.
 - **The frontend graph is actively being built** — coordinate before editing
   `frontend/src/`.
 - The Dropbox pipeline is written but **has not yet run end to end** — `ingestlog` and

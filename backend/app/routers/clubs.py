@@ -2,19 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.domain import Club as ClubDTO, ClubRepository
 from app.models import Club, Event
 
 router = APIRouter(prefix="/clubs", tags=["clubs"])
 
-# Mock/in-memory repo for now -- swap for a SQLModel-backed one once the
-# SQLite baseline is wired up (see app/domain.py docstring).
-_repo = ClubRepository()
 
+@router.get("")
+def list_clubs(session: Session = Depends(get_session)):
+    """All clubs currently in the database (SOP-synced and Dropbox-created).
 
-@router.get("", response_model=list[ClubDTO])
-def list_clubs():
-    return _repo.list_clubs()
+    This used to return two hardcoded placeholder clubs from an in-memory repo
+    left over from before the SQLite baseline existed (app/domain.py) -- real
+    data has been in the database since sop_sync landed, but this endpoint never
+    got switched over, so it silently served fake data underneath a real one.
+    """
+    return session.exec(select(Club)).all()
 
 
 @router.get("/{club_id}")

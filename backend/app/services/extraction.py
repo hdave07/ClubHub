@@ -78,9 +78,22 @@ EXTRACTION_TOOL_SCHEMA = {
                         "location": _nullable("string"),
                         "description": _nullable("string"),
                         "rsvp_url": _nullable("string"),
+                        "is_reschedule": {
+                            "type": "boolean",
+                            "description": (
+                                "True ONLY if the document itself explicitly says this date "
+                                "replaces an earlier one -- words like 'RESCHEDULED', "
+                                "'CORRECTION', 'NEW DATE', 'moved to', 'updated time'. "
+                                "This is the one signal used to update a previously stored "
+                                "date instead of adding a second event, so it must come from "
+                                "text actually on the document, never inferred from context. "
+                                "False for an ordinary announcement, even a recurring one."
+                            ),
+                        },
                     },
                     "required": [
                         "title", "start", "end", "location", "description", "rsvp_url",
+                        "is_reschedule",
                     ],
                 },
             },
@@ -130,6 +143,7 @@ class ExtractedEvent:
     rsvp_url: str | None
     status: str  # published | pending_review
     start_local: str | None = None  # what the model actually said, for debugging
+    is_reschedule: bool = False  # poster explicitly says this replaces an earlier date
 
 
 @dataclass(frozen=True)
@@ -274,6 +288,11 @@ Rules:
   result is unambiguous. If there is any doubt, set `start` to null and describe the
   problem in `uncertainties`.
 - Same for a missing time of day: if only a date is given, say so in `uncertainties`.
+- Set `is_reschedule` to true only if the document itself uses explicit
+  reschedule/correction language ("RESCHEDULED", "NEW DATE", "moved to",
+  "correction"). A club posting its normal weekly or recurring meeting is NOT a
+  reschedule even though the date changed from last time -- that flag exists
+  for the specific case of a club fixing a mistake, not for routine announcements.
 - `confidence` should reflect how legible and complete this document is: high for a
   clear poster stating an explicit date and time, low for a blurry photo, a partial
   schedule, or anything where you had to work to read it.
@@ -363,6 +382,7 @@ def extract_file(
                     title, start, confidence, has_time_component(start_raw)
                 ),
                 start_local=start_raw,
+                is_reschedule=bool(item.get("is_reschedule")),
             )
         )
 

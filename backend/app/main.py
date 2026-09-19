@@ -32,7 +32,12 @@ app = FastAPI(title="Campus Compass API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",  # the real frontend, via Vite
+        "http://localhost:5500",  # frontend/public/test.html served standalone
+        "http://127.0.0.1:5500",  # (Node on this machine is too old for Vite 8 --
+                                   #  see README; the test page bypasses it entirely)
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )

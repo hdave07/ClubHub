@@ -1,19 +1,125 @@
-from fastapi import APIRouter
+"""POST /recommend -- a free-text blurb becomes a ranked, explained shortlist.
 
-from app.models import FIXED_OUTCOMES
-from app.schemas import RecommendRequest, RecommendResponse
+    blurb
+      -> embeddings.query_clubs()   Voyage + Chroma: ~20 nearest clubs
+      -> reranker.rank_clubs()      Claude Sonnet: 5-8 of them, ranked, with a
+                                    reason each, plus the student's outcomes
+      -> + next_event per club      so the graph can show "what to show up to"
+
+Two stages because they answer different questions. Vector search finds clubs
+whose description resembles the blurb; it has no opinion on whether an intense
+competition team suits someone who said "not too intense", and cannot explain
+itself. The rerank supplies the judgement and the sentence.
+"""
+
+import asyncio
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select
+
+from app.database import get_session
+from app.models import Club, Event
+from app.schemas import ClubMatch, EventLite, RecommendRequest, RecommendResponse
+from app.services import embeddings, reranker
 
 router = APIRouter(tags=["recommend"])
 
+CANDIDATE_POOL = 20
+
+
+def _next_events(session: Session, club_ids: list[str]) -> dict[str, Event]:
+    """Soonest upcoming published event per club, as one query rather than N.
+
+    Only `published` -- a pending_review event has an unconfirmed date, and the
+    graph's event node is the thing telling a student where to physically turn
+    up. Only future events, for the same reason: "next step" is the entire point
+    of that node.
+    """
+    if not club_ids:
+        return {}
+
+    rows = session.exec(
+        select(Event)
+        .where(
+            Event.club_id.in_(club_ids),
+            Event.status == "published",
+            Event.start.is_not(None),
+            Event.start >= datetime.utcnow(),
+        )
+        .order_by(Event.start)
+    ).all()
+
+    soonest: dict[str, Event] = {}
+    for event in rows:  # ordered by start, so the first per club wins
+        soonest.setdefault(event.club_id, event)
+    return soonest
+
 
 @router.post("/recommend", response_model=RecommendResponse)
-def recommend(request: RecommendRequest) -> RecommendResponse:
-    """Blurb -> ranked clubs + graph.
+async def recommend(
+    request: RecommendRequest, session: Session = Depends(get_session)
+) -> RecommendResponse:
+    blurb = request.blurb.strip()
+    if not blurb:
+        raise HTTPException(status_code=400, detail="Tell us a bit about what you want.")
 
-    TODO:
-      1. Embed request.blurb and query ChromaDB for the top ~20 clubs.
-      2. Send those candidates + the blurb to Claude (Sonnet) to rerank to
-         5-8, map to FIXED_OUTCOMES, and write a "why this fits" line each.
-      3. Return the outcomes touched plus the ranked ClubMatch list.
-    """
-    return RecommendResponse(outcomes=FIXED_OUTCOMES[:3], clubs=[])
+    # Both calls are blocking and network-bound (Voyage, then Anthropic); on the
+    # event loop they would stall every other request for several seconds.
+    try:
+        candidate_ids = await asyncio.to_thread(
+            embeddings.query_clubs, blurb, CANDIDATE_POOL
+        )
+    except embeddings.EmbeddingError as e:
+        raise HTTPException(status_code=503, detail=f"Search is unavailable: {e}") from e
+
+    if not candidate_ids:
+        # No embedded clubs yet. An empty result is the honest answer -- the
+        # frontend renders an empty state rather than showing a broken graph.
+        return RecommendResponse(outcomes=[], clubs=[])
+
+    # Chroma returns ids in similarity order; preserve it so the rerank sees the
+    # search's opinion as its starting point.
+    found = {c.id: c for c in session.exec(select(Club).where(Club.id.in_(candidate_ids))).all()}
+    candidates = [found[cid] for cid in candidate_ids if cid in found]
+    if not candidates:
+        return RecommendResponse(outcomes=[], clubs=[])
+
+    try:
+        ranking = await asyncio.to_thread(reranker.rank_clubs, blurb, candidates)
+    except reranker.RerankError as e:
+        raise HTTPException(status_code=503, detail=f"Ranking failed: {e}") from e
+
+    upcoming = _next_events(session, [r.club.id for r in ranking.clubs])
+
+    return RecommendResponse(
+        outcomes=ranking.outcomes,
+        clubs=[
+            ClubMatch(
+                id=r.club.id,
+                name=r.club.name,
+                summary=r.club.summary,
+                outcomes=r.club.outcomes,
+                tags=r.club.tags,
+                commitment=r.club.commitment,
+                why_it_fits=r.why_it_fits,
+                last_updated=r.club.last_updated,
+                next_event=_to_event_lite(upcoming.get(r.club.id)),
+            )
+            for r in ranking.clubs
+        ],
+    )
+
+
+def _to_event_lite(event: Event | None) -> EventLite | None:
+    if event is None:
+        return None
+    return EventLite(
+        id=event.id,
+        title=event.title,
+        start=event.start,
+        location=event.location,
+        source=event.source,
+        source_file=event.source_file,
+        dropbox_link=event.dropbox_link,
+    )
