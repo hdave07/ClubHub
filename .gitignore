@@ -1,0 +1,21 @@
+# Env
+.env
+.env.local
+!*.env.example
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python / backend
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/data/*.db
+backend/data/chroma/
+
+# OS
+.DS_Store
+Thumbs.db

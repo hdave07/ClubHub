@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+chromadb
+sentence-transformers
+anthropic
+dropbox
+rapidfuzz
+httpx
+python-dotenv
+pydantic-settings
