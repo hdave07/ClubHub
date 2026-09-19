@@ -64,7 +64,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
     >
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
-        {!isLoading && (
+        {!isLoading && !empty && (
           <Button variant="outline" onClick={onEdit}>
             Edit
           </Button>
