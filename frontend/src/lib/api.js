@@ -38,3 +38,19 @@ export async function getEvents({ since, signal } = {}) {
   const { data } = await api.get('/events', { params, signal })
   return data
 }
+
+/**
+ * POST /upload: stores the file in the team Dropbox, has Claude read it, and returns what it found
+ * (takes about 5-10 seconds). Events in the response are raw rows: display only through lib/events.js.
+ * @param {File} file
+ * @returns {Promise<{ status: 'processed' | 'duplicate' | 'unsupported' | 'no_events' | 'failed', message: string,
+ *   club: { id: string, name: string, created: boolean } | null,
+ *   events: { id: string, title: string, start: string | null, location: string | null, status: string,
+ *     source_file: string, dropbox_link: string | null }[] }>}
+ */
+export async function uploadFlier(file) {
+  const body = new FormData()
+  body.append('file', file)
+  const { data } = await api.post('/upload', body)
+  return data
+}

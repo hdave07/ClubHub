@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import AddEventPanel from '@/components/AddEventPanel'
 import ArrivalToast from '@/components/ArrivalToast'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
@@ -70,6 +71,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const [previewClubs, setPreviewClubs] = useState(null)
   const [previewDetails, setPreviewDetails] = useState(null)
   const [SimulateDrop, setSimulateDrop] = useState(null)
+  const [adding, setAdding] = useState(false)
 
   // Dev only: "Simulate Dropbox drop" button (src/dev/SimulateDrop.jsx). Stripped from production builds.
   useEffect(() => {
@@ -118,6 +120,9 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
     },
     [dismissToast],
   )
+  const resultClubIds = useMemo(() => new Set(clubIds), [clubIds])
+  const closeAdding = useCallback(() => setAdding(false), [])
+  const onPublished = useCallback((events) => events.forEach(inject), [inject])
   const clubName = (id) => matched.find((c) => String(c.id) === String(id))?.name ?? ''
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data && { ...data, clubs }), [clubs, data])
 
@@ -158,13 +163,30 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
       className="mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh"
       aria-busy={isLoading}
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="relative flex items-center justify-between gap-4">
         <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
         {!isLoading && !empty && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEdit}>
-            Edit
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={adding ? 'text-gold' : 'text-muted-foreground'}
+              aria-expanded={adding}
+              onClick={() => setAdding((v) => !v)}
+            >
+              Add an event
+            </Button>
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEdit}>
+              Edit
+            </Button>
+          </div>
         )}
+        <AddEventPanel
+          open={adding && !isLoading && !empty}
+          onClose={closeAdding}
+          resultClubIds={resultClubIds}
+          onPublished={onPublished}
+        />
       </div>
 
       {isLoading && (
