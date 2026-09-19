@@ -1,6 +1,7 @@
 import '@xyflow/react/dist/style.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlow } from '@xyflow/react'
+import { PANEL_GAP, PANEL_WIDTH } from '@/components/ClubPanel'
 import StarField from '@/components/StarField'
 import { ClubNode, EventNode, OutcomeNode, YouNode } from '@/components/StarNode'
 import { buildGraph } from '@/lib/buildGraph'
@@ -15,6 +16,23 @@ const EDGE = `${sky.heading}1A`
 const EDGE_EVENT = `${sky.heading}12` // event edges are the faintest
 const EDGE_DIM = 0.3
 
+const BASE_PADDING = { top: 56, bottom: 56, left: 140, right: 140 } // room for the labels beside the outer nodes
+const DESKTOP = '(min-width: 1024px)'
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+const matches = (query) => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches
+
+/**
+ * fitView padding. With the club panel open on desktop it sits over the right of the graph, so the stars refit
+ * into the space to its left (the panel's width replaces the label margin on that side).
+ */
+function fitPadding(panelOpen) {
+  const p =
+    panelOpen && matches(DESKTOP)
+      ? { ...BASE_PADDING, left: 100, right: PANEL_WIDTH + PANEL_GAP + 24 }
+      : BASE_PADDING
+  return { top: `${p.top}px`, bottom: `${p.bottom}px`, left: `${p.left}px`, right: `${p.right}px` }
+}
+
 export default function StarGraph({
   response,
   selectedId = null,
@@ -22,11 +40,21 @@ export default function StarGraph({
   onSelect,
   onHover,
   pulseIds = NO_PULSE,
+  panelOpen = false,
 }) {
   const graph = useMemo(() => {
     const g = buildGraph(response)
     return { nodes: radialLayout(g.nodes, g.edges), edges: g.edges }
   }, [response])
+
+  // Refit only when the panel opens or closes (with a short glide), not on first render or when switching clubs.
+  const [flow, setFlow] = useState(null)
+  const wasOpen = useRef(panelOpen)
+  useEffect(() => {
+    if (!flow || wasOpen.current === panelOpen) return
+    wasOpen.current = panelOpen
+    flow.fitView({ padding: fitPadding(panelOpen), duration: matches(REDUCED_MOTION) ? 0 : motion.slow })
+  }, [panelOpen, flow])
 
   const [showHint, setShowHint] = useState(true)
   useEffect(() => {
@@ -116,7 +144,8 @@ export default function StarGraph({
         nodeTypes={nodeTypes}
         colorMode="dark"
         fitView
-        fitViewOptions={{ padding: { top: '56px', bottom: '56px', left: '140px', right: '140px' } }}
+        fitViewOptions={{ padding: fitPadding(panelOpen) }}
+        onInit={setFlow}
         minZoom={0.4}
         maxZoom={1.6}
         nodesDraggable={false}
