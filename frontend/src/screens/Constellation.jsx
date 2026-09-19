@@ -6,13 +6,14 @@ import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
 import { clubIdsForPulse } from '@/lib/buildGraph'
 import { sanitizeClub } from '@/lib/club'
+import { applyArrivals, applyArrivalsToDetail } from '@/lib/events'
 import { sky } from '@/lib/theme'
 import { useClub } from '@/lib/useClub'
+import { useLiveEvents } from '@/lib/useLiveEvents'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
-const NO_PULSE = new Set()
 const noop = () => {}
 
 function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds, club, rank, panel, onClose }) {
@@ -47,8 +48,7 @@ function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHove
   )
 }
 
-// pulseIds: event node ids ("event:88") for Dropbox events that just arrived. Wired up by the live-updates work.
-export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs, pulseIds = NO_PULSE }) {
+export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs }) {
   const [selectedId, setSelectedId] = useState(null)
   const [hoveredId, setHoveredId] = useState(null)
   const [previewClubs, setPreviewClubs] = useState(null)
@@ -64,9 +64,18 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
 
   const isLoading = USE_PREVIEW_DATA ? previewClubs === null : loading
   const err = USE_PREVIEW_DATA ? null : error
-  const clubs = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+  const matched = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+
+  // Live Dropbox arrivals (main plan flow 3): merged into the cards, the graph and the panel; each one gets a single
+  // gold highlight. Preview mode has no backend to poll; arrivals there come from the dev "Simulate drop".
+  const clubIds = useMemo(() => matched.map((c) => String(c.id)), [matched])
+  const { arrivals, pulseIds } = useLiveEvents({
+    clubIds,
+    enabled: !USE_PREVIEW_DATA && !loading && !error && clubIds.length > 0,
+  })
+  const clubs = useMemo(() => matched.map((c) => applyArrivals(c, arrivals)), [matched, arrivals])
   const highlightIds = useMemo(() => clubIdsForPulse(clubs, pulseIds), [clubs, pulseIds])
-  const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data), [clubs, data])
+  const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data && { ...data, clubs }), [clubs, data])
 
   // The selected club's panel: it renders at once from the match; GET /clubs/:id (or the preview body) fills in the rest.
   const selectedIndex = clubs.findIndex((c) => String(c.id) === String(selectedId))
@@ -74,9 +83,11 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const live = useClub(selectedClub ? String(selectedClub.id) : null, { enabled: !USE_PREVIEW_DATA })
   const previewRaw = USE_PREVIEW_DATA && selectedClub ? previewDetails?.[selectedClub.id] : undefined
   const previewDetail = useMemo(() => (previewRaw ? sanitizeClub(previewRaw) : null), [previewRaw])
-  const panel = USE_PREVIEW_DATA
+  const rawPanel = USE_PREVIEW_DATA
     ? { detail: previewDetail, loading: previewDetails === null, error: null, notFound: previewDetails !== null && !previewRaw }
     : live
+  const panelDetail = useMemo(() => applyArrivalsToDetail(rawPanel.detail, arrivals), [rawPanel.detail, arrivals])
+  const panel = { ...rawPanel, detail: panelDetail }
   const closePanel = useCallback(() => setSelectedId(null), [])
 
   if (err) {

@@ -27,7 +27,35 @@ function clubData(club, rank) {
 }
 
 function eventData(club, ev) {
-  return { clubId: String(club.id), source: ev.source, title: ev.title, start: ev.start, source_file: ev.source_file }
+  return {
+    clubId: String(club.id),
+    source: ev.source,
+    title: ev.title,
+    start: ev.start,
+    source_file: ev.source_file,
+    arrival: !!ev.arrival, // arrived live this session (lib/events.js applyArrivals): never capped away
+  }
+}
+
+/**
+ * Stars for events that arrived live this session: a club's `live_events`, plus its next event when that is itself
+ * an arrival the graph doesn't show yet (a backend graph names the old next event).
+ */
+function addLiveEventStars({ nodes, edges }, clubs) {
+  const ids = new Set(nodes.map((n) => n.id))
+  for (const club of clubs) {
+    const clubId = `club:${club.id}`
+    if (!ids.has(clubId)) continue
+    const next = club.next_event?.arrival ? [club.next_event] : []
+    for (const ev of [...next, ...(club.live_events ?? [])]) {
+      const eventId = `event:${ev.id}`
+      if (ids.has(eventId)) continue
+      ids.add(eventId)
+      nodes.push({ id: eventId, type: 'event', label: eventLabel(ev), data: eventData(club, ev) })
+      edges.push({ source: clubId, target: eventId })
+    }
+  }
+  return { nodes, edges }
 }
 
 function mostCommonOutcomes(clubs) {
@@ -135,27 +163,35 @@ function normalizeBackendGraph(graph, response) {
   return { nodes: kept, edges }
 }
 
-/** Hard cap: drop events first (lowest-ranked club first), then the lowest-ranked clubs. */
+/**
+ * Hard cap: drop events first (lowest-ranked club first), then the lowest-ranked clubs. Live arrivals and the clubs
+ * they belong to are never dropped: the arrival is the demo moment.
+ */
 function capGraph({ nodes, edges }) {
   if (nodes.length <= MAX_NODES) return { nodes, edges }
+  const arrivalClubs = new Set(nodes.filter((n) => n.type === 'event' && n.data?.arrival).map((n) => n.data.clubId))
+  const protectedNode = (n) => (n.type === 'event' ? !!n.data?.arrival : arrivalClubs.has(n.data?.clubId))
   const rankOfClub = new Map(nodes.filter((n) => n.type === 'club').map((n) => [n.data?.clubId, n.data?.rank ?? Infinity]))
   const rankOf = (n) => (n.type === 'event' ? rankOfClub.get(n.data?.clubId) : n.data?.rank) ?? Infinity
   const removed = new Set()
   const remaining = () => nodes.length - removed.size
   for (const type of ['event', 'club']) {
-    const order = nodes.filter((n) => n.type === type).sort((a, b) => rankOf(b) - rankOf(a))
+    const order = nodes.filter((n) => n.type === type && !protectedNode(n)).sort((a, b) => rankOf(b) - rankOf(a))
     for (const n of order) {
       if (remaining() <= MAX_NODES) break
       removed.add(n.id)
     }
   }
-  const kept = nodes.filter((n) => !removed.has(n.id))
+  // An event whose club was dropped would float alone.
+  const clubsLeft = new Set(nodes.filter((n) => n.type === 'club' && !removed.has(n.id)).map((n) => n.data?.clubId))
+  const kept = nodes.filter((n) => !removed.has(n.id) && (n.type !== 'event' || clubsLeft.has(n.data?.clubId)))
   const ids = new Set(kept.map((n) => n.id))
   return { nodes: kept, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) }
 }
 
 /**
  * Response -> { nodes, edges } for the personal graph (about 15-25 nodes, never more than 25).
+ * Clubs may carry live arrivals (lib/events.js applyArrivals); each one gets a star.
  * @param {{ outcomes?: string[], clubs?: object[], graph?: { nodes: object[], edges: object[] } | null }} response
  * @returns {{ nodes: StarGraphNode[], edges: import('@/types').GraphEdge[] }}
  */
@@ -164,13 +200,13 @@ export function buildGraph(response) {
   if (g?.nodes?.length) {
     const normalized = normalizeBackendGraph(g, response)
     // A backend graph with no usable club nodes falls back to the club list.
-    if (normalized.nodes.some((n) => n.type === 'club')) return capGraph(normalized)
+    if (normalized.nodes.some((n) => n.type === 'club')) return capGraph(addLiveEventStars(normalized, response?.clubs ?? []))
   }
-  return capGraph(buildFromClubs(response))
+  return capGraph(addLiveEventStars(buildFromClubs(response), response?.clubs ?? []))
 }
 
 /**
- * Club ids whose next_event node is in pulseIds (a new Dropbox event just arrived), for the card highlight.
+ * Club ids with an event node in pulseIds (a new Dropbox event just arrived), for the card highlight.
  * @param {object[] | undefined} clubs
  * @param {Set<string> | undefined} pulseIds event node ids like "event:88"
  * @returns {Set<string>}
@@ -181,6 +217,7 @@ export function clubIdsForPulse(clubs, pulseIds) {
   for (const c of clubs ?? []) {
     const ev = c.next_event
     if (ev && typeof ev === 'object' && pulseIds.has(`event:${ev.id ?? c.id}`)) ids.add(String(c.id))
+    if ((c.live_events ?? []).some((a) => pulseIds.has(`event:${a.id}`))) ids.add(String(c.id))
   }
   return ids
 }

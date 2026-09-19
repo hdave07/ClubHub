@@ -80,6 +80,17 @@ export function radialLayout(nodes, edges) {
     tangentSign.set(s.n.id, prev > next ? -1 : 1)
   })
 
+  // A club can have a second event star (a live arrival): it goes on the other side, then further out.
+  const eventIndex = new Map()
+  const clubEventCount = new Map()
+  for (const n of nodes) {
+    if (n.type !== 'event') continue
+    const club = neighbors(n.id).find((m) => m.type === 'club')
+    const k = clubEventCount.get(club?.id) ?? 0
+    clubEventCount.set(club?.id, k + 1)
+    eventIndex.set(n.id, k)
+  }
+
   const point = (r, deg) => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)]
 
   // Labels go on the outward side of a node, so edges (which arrive from the inside) don't cross the text.
@@ -108,9 +119,11 @@ export function radialLayout(nodes, edges) {
       const a = club ? angle.get(club.id) : -90
       const [px, py] = point(CLUB_RING, a)
       const rad = (a * Math.PI) / 180
-      const sign = (club && tangentSign.get(club.id)) || 1
-      cx = px - Math.sin(rad) * sign * EVENT_OFFSET
-      cy = py + Math.cos(rad) * sign * EVENT_OFFSET
+      const k = eventIndex.get(n.id) ?? 0
+      const sign = ((club && tangentSign.get(club.id)) || 1) * (k % 2 ? -1 : 1)
+      const offset = EVENT_OFFSET * (1 + Math.floor(k / 2))
+      cx = px - Math.sin(rad) * sign * offset
+      cy = py + Math.cos(rad) * sign * offset
       side = outward((Math.atan2(cy, cx) * 180) / Math.PI)
     }
     const size = nodeStyles[n.type].size
