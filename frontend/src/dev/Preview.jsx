@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -6,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { OUTCOME_LABELS, normalizeOutcome } from '@/types'
 import { button, gold, outcomeColor, outcomeColors, pinkStar, sky } from '@/lib/theme'
 import ClubCard, { ClubCardSkeleton } from '@/components/ClubCard'
+import StarGraph from '@/components/StarGraph'
 import { previewClubs } from './previewClubs'
 
 function Swatch({ name, color }) {
@@ -63,6 +65,33 @@ function PreviewClubCard({ club }) {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+const PULSE_ID = 'event:preview-event-1' // the Dropbox event in previewClubs
+const GRAPH_RESPONSE = { clubs: previewClubs }
+
+function GraphDemo() {
+  const [selectedId, setSelectedId] = useState(null)
+  const [hoveredId, setHoveredId] = useState(null)
+  const [pulsing, setPulsing] = useState(false)
+  const pulseIds = useMemo(() => (pulsing ? new Set([PULSE_ID]) : undefined), [pulsing])
+  return (
+    <>
+      <Button variant="outline" size="sm" className="mb-3" onClick={() => setPulsing((p) => !p)}>
+        Pulse test: {pulsing ? 'on' : 'off'}
+      </Button>
+      <div className="relative h-[520px] overflow-hidden rounded-2xl border border-border bg-card">
+        <StarGraph
+          response={GRAPH_RESPONSE}
+          selectedId={selectedId}
+          hoveredId={hoveredId}
+          onSelect={setSelectedId}
+          onHover={setHoveredId}
+          pulseIds={pulseIds}
+        />
+      </div>
+    </>
   )
 }
 
@@ -124,6 +153,10 @@ export default function Preview() {
           <ClubCard club={previewClubs[1]} rank={2} hovered />
           <ClubCardSkeleton />
         </div>
+      </Section>
+
+      <Section title="Star graph">
+        <GraphDemo />
       </Section>
 
       <Section title="Sample clubs (raw, not the final ClubCard)">

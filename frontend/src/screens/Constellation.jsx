@@ -1,26 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ClubList from '@/components/ClubList'
+import StarField from '@/components/StarField'
+import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
-import { sky } from '@/lib/theme'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
-// CSS-only stars for the graph panel, colors from theme tokens.
-const panelStars = [
-  [12, 18], [27, 72], [41, 33], [58, 14], [66, 58], [79, 27], [88, 80], [8, 55], [35, 88], [92, 9], [52, 66],
-]
-  .map(([x, y]) => `radial-gradient(1.5px 1.5px at ${x}% ${y}%, ${sky.stars} 50%, transparent 51%)`)
-  .join(', ')
-
-// TODO Sprint 5: replace the placeholder text with StarGraph (React Flow, selectedId/hoveredId synced with ClubList).
-function GraphPanel() {
+function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover }) {
   return (
-    <div
-      className="flex min-h-64 flex-1 items-center justify-center rounded-2xl border border-border bg-card lg:min-h-0"
-      style={{ backgroundImage: panelStars }}
-    >
-      <p className="text-sm text-muted-foreground">Your star map appears here</p>
+    <div className="relative min-h-96 flex-1 overflow-hidden rounded-2xl border border-border bg-card lg:min-h-0">
+      {loading ? (
+        <StarField twinkle />
+      ) : (
+        <StarGraph
+          response={response}
+          selectedId={selectedId}
+          hoveredId={hoveredId}
+          onSelect={onSelect}
+          onHover={onHover}
+        />
+      )}
     </div>
   )
 }
@@ -36,7 +36,8 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
 
   const isLoading = USE_PREVIEW_DATA ? previewClubs === null : loading
   const err = USE_PREVIEW_DATA ? null : error
-  const clubs = (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? []
+  const clubs = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+  const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data), [clubs, data])
 
   if (err) {
     return (
@@ -106,7 +107,14 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             onSelect={setSelectedId}
             onHover={setHoveredId}
           />
-          <GraphPanel />
+          <GraphPanel
+            response={graphResponse}
+            loading={isLoading}
+            selectedId={selectedId}
+            hoveredId={hoveredId}
+            onSelect={setSelectedId}
+            onHover={setHoveredId}
+          />
         </div>
       )}
     </div>
