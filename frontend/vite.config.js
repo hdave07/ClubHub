@@ -13,7 +13,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8000',
+      // Remove if backend adds an /api prefix.
+      '/api': {
+        target: 'http://localhost:8000',
+        rewrite: (p) => p.replace(/^\/api/, ''),
+      },
     },
   },
 })
