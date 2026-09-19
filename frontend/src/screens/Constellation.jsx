@@ -100,7 +100,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
 
   return (
     <div
-      className="mx-auto flex min-h-svh max-w-6xl flex-col px-6 py-10 lg:h-svh"
+      className="mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh"
       aria-busy={isLoading}
     >
       <div className="flex items-center justify-between gap-4">
