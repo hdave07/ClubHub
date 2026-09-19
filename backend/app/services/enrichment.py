@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.config import settings
-from app.models import FIXED_OUTCOMES, FIXED_TAGS
+from app.models import FIXED_OUTCOMES, FIXED_TAGS, derive_outcomes_from_tags
 
 DEFAULT_HAIKU_MODEL = "claude-haiku-4-5-20251001"
 LIMITED_INFO_SUMMARY = "Limited information is available from this club listing."
@@ -144,9 +144,18 @@ def _normalise_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     if commitment not in {"casual", "moderate", "intense", "unknown"}:
         raise EnrichmentError("Claude returned invalid commitment")
 
+    # A thin listing legitimately yields no outcomes, but a club with none has no edge
+    # in the you -> outcomes -> clubs graph and can never be drawn. Fall back to the tag
+    # mapping; never override outcomes the model did assign.
+    outcomes_derived = False
+    if not outcomes:
+        outcomes = derive_outcomes_from_tags(tags)
+        outcomes_derived = bool(outcomes)
+
     return {
         "summary": summary,
         "outcomes": outcomes,
+        "outcomes_derived": outcomes_derived,
         "tags": tags,
         "commitment": commitment,
     }
