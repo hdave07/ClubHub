@@ -52,10 +52,10 @@ export function outcomeColor(value) {
 export const nodeStyles = {
   you: { size: 56, background: '#FFFFFF', boxShadow: '0 0 32px 12px rgba(255, 255, 255, 0.55)', labelVisible: 'always' },
   outcome: { size: 28, labelVisible: 'always' }, // background: outcomeColor(outcome)
-  club: { size: 18, shape: 'star', labelVisible: 'always' }, // tint: outcomeColor(first outcome)
-  event: { size: 8, background: sky.textMuted, labelVisible: 'hover' },
+  club: { size: 24, shape: 'star', labelVisible: 'always' }, // tint: outcomeColor(first outcome)
+  event: { size: 10, background: sky.textMuted, labelVisible: 'hover' },
   eventDropbox: {
-    size: 8,
+    size: 10,
     background: gold.color,
     boxShadow: `0 0 12px 4px ${gold.glow}`,
     labelVisible: 'hover',
@@ -64,15 +64,15 @@ export const nodeStyles = {
 
 /**
  * @param {string | null | undefined} last_updated ISO date
- * @returns {number} 1.0 (<=7 days), 0.75 (<=30 days), 0.5 (older or missing)
+ * @returns {number} 1.0 (<=7 days), 0.75 (<=30 days), 0.65 (older or missing)
  */
 export function clubBrightness(last_updated) {
   const t = last_updated ? Date.parse(last_updated) : NaN
-  if (Number.isNaN(t)) return 0.5
+  if (Number.isNaN(t)) return 0.65
   const days = (Date.now() - t) / 86_400_000
   if (days <= 7) return 1.0
   if (days <= 30) return 0.75
-  return 0.5
+  return 0.65
 }
 
 // Motion (ms). Nothing animates longer than 1.5s except the new-event pulse.

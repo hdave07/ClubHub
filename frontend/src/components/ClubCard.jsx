@@ -91,8 +91,8 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
         </div>
       )}
 
-      {keys.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+      {(keys.length > 0 || showCommitment) && (
+        <div className="flex flex-wrap items-center gap-1.5">
           {keys.map((key) => {
             const color = outcomeColor(key)
             return (
@@ -106,14 +106,11 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
               </span>
             )
           })}
-        </div>
-      )}
-
-      {showCommitment && (
-        <div>
-          <Badge variant="outline" className="capitalize">
-            {club.commitment}
-          </Badge>
+          {showCommitment && (
+            <Badge variant="outline" className="capitalize">
+              {club.commitment}
+            </Badge>
+          )}
         </div>
       )}
 

@@ -1,8 +1,8 @@
 import { nodeStyles } from '@/lib/theme'
 
-const OUTCOME_RING = 190
-const CLUB_RING = 380
-const EVENT_OFFSET = 70
+const OUTCOME_RING = 140
+const CLUB_RING = 270
+const EVENT_OFFSET = 55
 const MIN_GAP = 22 // degrees between neighboring clubs
 
 const round = (n) => Math.round(n * 1000) / 1000

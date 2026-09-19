@@ -7,6 +7,9 @@ import Constellation from '@/screens/Constellation'
 import Major from '@/screens/Major'
 import Welcome from '@/screens/Welcome'
 
+// Dev only: with ?previewData, open straight on the results screen. Remove after real data lands.
+const PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
+
 const STORAGE_KEY = 'campus-compass:input'
 const EMPTY_INPUT = { major: '', blurb_text: '' }
 
@@ -23,7 +26,7 @@ function loadInput() {
 }
 
 function App() {
-  const [step, setStep] = useState('welcome') // welcome | major | blurb | results
+  const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'welcome') // welcome | major | blurb | results
   const [input, setInput] = useState(loadInput)
   const [skipped, setSkipped] = useState(false)
   const { data, loading, error, run, retry } = useRecommend()

@@ -34,9 +34,11 @@ const labelStyle = {
   transform: 'translateX(-50%)',
   marginTop: 6,
   whiteSpace: 'nowrap',
-  fontSize: 12,
+  fontSize: 13,
   lineHeight: 1.2,
   color: sky.body,
+  // a soft halo in the panel color keeps labels readable where an edge line crosses them
+  textShadow: `0 0 4px ${sky.surface}, 0 0 8px ${sky.surface}`,
   pointerEvents: 'none',
 }
 
@@ -147,7 +149,7 @@ export function ClubNode({ data }) {
         <path d={STAR_PATH} fill={color} />
       </svg>
       <span style={labelStyle} title={name}>
-        {truncate(name, 22)}
+        {truncate(name, 28)}
       </span>
     </div>
   )
