@@ -1,9 +1,10 @@
 import { nodeStyles } from '@/lib/theme'
 
-const OUTCOME_RING = 140
-const CLUB_RING = 270
-const EVENT_OFFSET = 55
-const MIN_GAP = 22 // degrees between neighboring clubs
+const OUTCOME_RING = 130
+const CLUB_RING = 245
+const EVENT_OFFSET = 34 // an event sits beside its club (along the ring), so it never collides with the club's label
+const MIN_GAP = 26 // degrees between neighboring clubs
+const SPREAD = 0.4 // how far clubs are pulled toward even spacing, so a cluster of clubs doesn't crowd one side
 
 const round = (n) => Math.round(n * 1000) / 1000
 const norm = (a) => ((((a + 90) % 360) + 360) % 360) - 90 // [-90, 270)
@@ -46,8 +47,12 @@ export function radialLayout(nodes, edges) {
     })
     .sort((p, q) => p.a - q.a || p.i - q.i)
 
-  // Spread neighbors to at least MIN_GAP apart, keeping their order (including across the wrap).
+  // Pull clubs partway toward even spacing (order kept), then keep neighbors at least MIN_GAP apart (also across the wrap).
   const a = seeded.map((s) => s.a)
+  if (a.length > 1) {
+    const start = a[0]
+    for (let i = 0; i < a.length; i++) a[i] = a[i] * (1 - SPREAD) + (start + (360 * i) / a.length) * SPREAD
+  }
   if (a.length > 1) {
     for (let iter = 0; iter < 500; iter++) {
       let moved = false
@@ -66,18 +71,51 @@ export function radialLayout(nodes, edges) {
   }
   seeded.forEach((s, k) => angle.set(s.n.id, a[k]))
 
+  // Each club's event goes on the side (along the ring) that has more room.
+  const tangentSign = new Map()
+  seeded.forEach((s, k) => {
+    const last = a.length - 1
+    const prev = k === 0 ? a[0] + 360 - a[last] : a[k] - a[k - 1]
+    const next = k === last ? a[0] + 360 - a[last] : a[k + 1] - a[k]
+    tangentSign.set(s.n.id, prev > next ? -1 : 1)
+  })
+
   const point = (r, deg) => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)]
+
+  // Labels go on the outward side of a node, so edges (which arrive from the inside) don't cross the text.
+  const outward = (deg) => {
+    const a = ((deg % 360) + 360) % 360
+    if (a >= 315 || a < 45) return 'right'
+    if (a < 135) return 'bottom'
+    if (a < 225) return 'left'
+    return 'top'
+  }
+  // An outcome's edges leave along its outward ray (to its clubs), so its label goes beside it instead.
+  const beside = { right: 'top', left: 'top', top: 'right', bottom: 'right' }
 
   return nodes.map((n) => {
     let cx = 0
     let cy = 0
-    if (n.type === 'outcome') [cx, cy] = point(OUTCOME_RING, angle.get(n.id))
-    else if (n.type === 'club') [cx, cy] = point(CLUB_RING, angle.get(n.id))
-    else if (n.type === 'event') {
+    let side
+    if (n.type === 'outcome') {
+      ;[cx, cy] = point(OUTCOME_RING, angle.get(n.id))
+      side = beside[outward(angle.get(n.id))]
+    } else if (n.type === 'club') {
+      ;[cx, cy] = point(CLUB_RING, angle.get(n.id))
+      side = outward(angle.get(n.id))
+    } else if (n.type === 'event') {
       const club = neighbors(n.id).find((m) => m.type === 'club')
-      ;[cx, cy] = point(CLUB_RING + EVENT_OFFSET, club ? angle.get(club.id) : -90)
+      const a = club ? angle.get(club.id) : -90
+      const [px, py] = point(CLUB_RING, a)
+      const rad = (a * Math.PI) / 180
+      const sign = (club && tangentSign.get(club.id)) || 1
+      cx = px - Math.sin(rad) * sign * EVENT_OFFSET
+      cy = py + Math.cos(rad) * sign * EVENT_OFFSET
+      side = outward((Math.atan2(cy, cx) * 180) / Math.PI)
     }
     const size = nodeStyles[n.type].size
-    return { ...n, position: { x: round(cx - size / 2), y: round(cy - size / 2) } }
+    const out = { ...n, position: { x: round(cx - size / 2), y: round(cy - size / 2) } }
+    if (side) out.data = { ...n.data, side }
+    return out
   })
 }

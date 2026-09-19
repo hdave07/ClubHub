@@ -33,6 +33,9 @@
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
   --heading: oklch(0.145 0 0);
+  --gold: #D8B56A;
+  --gold-muted: #3A3221;
+  --sage: #A9B79E;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -50,6 +53,9 @@ body {
 
 @theme inline {
   --color-heading: var(--heading);
+  --color-gold: var(--gold);
+  --color-gold-muted: var(--gold-muted);
+  --color-sage: var(--sage);
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Fraunces Variable", ui-serif, Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -93,39 +99,42 @@ body {
 }
 
 .dark {
-  --background: #191816;
-  --foreground: #BDB6AA;
-  --heading: #F4EFE5;
-  --card: #242320;
-  --card-foreground: #BDB6AA;
-  --popover: #242320;
-  --popover-foreground: #BDB6AA;
-  --primary: #F4EFE5;
-  --primary-foreground: #191816;
-  --secondary: #2D2B29;
-  --secondary-foreground: #BDB6AA;
-  --muted: #2D2B29;
-  --muted-foreground: #9F9A8F;
-  --accent: #2D2B29;
-  --accent-foreground: #F4EFE5;
+  --background: #181817;
+  --foreground: #F2EEE6;
+  --heading: #F2EEE6;
+  --card: #201F1D;
+  --card-foreground: #F2EEE6;
+  --popover: #201F1D;
+  --popover-foreground: #F2EEE6;
+  --primary: #F2EEE6;
+  --primary-foreground: #181817;
+  --secondary: #262522;
+  --secondary-foreground: #F2EEE6;
+  --muted: #262522;
+  --muted-foreground: #AAA59B;
+  --accent: #262522;
+  --accent-foreground: #F2EEE6;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: rgba(244, 239, 229, 0.10);
-  --input: rgba(244, 239, 229, 0.10);
-  --ring: #E5C07B;
+  --border: #383631;
+  --input: #383631;
+  --ring: #D8B56A;
+  --gold: #D8B56A;
+  --gold-muted: #3A3221;
+  --sage: #A9B79E;
   --radius: 0.75rem;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: #242320;
-  --sidebar-foreground: #BDB6AA;
-  --sidebar-primary: #F4EFE5;
-  --sidebar-primary-foreground: #191816;
-  --sidebar-accent: #2D2B29;
-  --sidebar-accent-foreground: #F4EFE5;
-  --sidebar-border: rgba(244, 239, 229, 0.10);
-  --sidebar-ring: #E5C07B;
+  --sidebar: #201F1D;
+  --sidebar-foreground: #F2EEE6;
+  --sidebar-primary: #F2EEE6;
+  --sidebar-primary-foreground: #181817;
+  --sidebar-accent: #262522;
+  --sidebar-accent-foreground: #F2EEE6;
+  --sidebar-border: #383631;
+  --sidebar-ring: #D8B56A;
 }
 
 @layer base {
@@ -148,7 +157,7 @@ body {
 @keyframes twinkle {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
@@ -165,25 +174,39 @@ body {
   }
 }
 
-@keyframes star-pulse {
+/* One-shot highlight for a new Dropbox event: fade in, hold about 3s, fade out. No loop. */
+@keyframes arrival {
   0% {
-    transform: scale(1);
-    opacity: 0.9;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
   }
   100% {
-    transform: scale(4.5);
     opacity: 0;
   }
 }
 
-.star-pulse {
-  animation: star-pulse 2s ease-out infinite;
+.arrival {
+  animation: arrival 3900ms ease-out 1 forwards;
+}
+
+/* Reduced motion: no fade, a static highlight for 3s. */
+@keyframes arrival-static {
+  0%,
+  99.9% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .star-pulse {
-    animation: none;
-    transform: scale(2.2);
-    opacity: 0.9;
+  .arrival {
+    animation: arrival-static 3s linear 1 forwards;
   }
 }

@@ -3,14 +3,17 @@ import ClubList from '@/components/ClubList'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
+import { clubIdsForPulse } from '@/lib/buildGraph'
 import { sky } from '@/lib/theme'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
-function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover }) {
+const NO_PULSE = new Set()
+
+function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds }) {
   return (
-    <div className="relative min-h-96 flex-1 overflow-hidden rounded-2xl border border-border bg-card lg:min-h-0">
+    <div className="relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0">
       {loading ? (
         <StarField twinkle />
       ) : (
@@ -20,13 +23,15 @@ function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHove
           hoveredId={hoveredId}
           onSelect={onSelect}
           onHover={onHover}
+          pulseIds={pulseIds}
         />
       )}
     </div>
   )
 }
 
-export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs }) {
+// pulseIds: event node ids ("event:88") for Dropbox events that just arrived. Wired up by the live-updates work.
+export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs, pulseIds = NO_PULSE }) {
   const [selectedId, setSelectedId] = useState(null)
   const [hoveredId, setHoveredId] = useState(null)
   const [previewClubs, setPreviewClubs] = useState(null)
@@ -38,6 +43,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const isLoading = USE_PREVIEW_DATA ? previewClubs === null : loading
   const err = USE_PREVIEW_DATA ? null : error
   const clubs = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+  const highlightIds = useMemo(() => clubIdsForPulse(clubs, pulseIds), [clubs, pulseIds])
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data), [clubs, data])
 
   if (err) {
@@ -65,9 +71,9 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
       aria-busy={isLoading}
     >
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
+        <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
         {!isLoading && !empty && (
-          <Button variant="outline" onClick={onEdit}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEdit}>
             Edit
           </Button>
         )}
@@ -105,6 +111,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             loading={isLoading}
             selectedId={selectedId}
             hoveredId={hoveredId}
+            highlightIds={highlightIds}
             onSelect={setSelectedId}
             onHover={setHoveredId}
           />
@@ -115,6 +122,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             hoveredId={hoveredId}
             onSelect={setSelectedId}
             onHover={setHoveredId}
+            pulseIds={pulseIds}
           />
         </div>
       )}

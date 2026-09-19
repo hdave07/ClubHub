@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { gold, motion, nodeStyles, outcomeColor, sky } from '@/lib/theme'
-import { OUTCOME_LABELS } from '@/types'
+import { gold, motion, nodeStyles, sky } from '@/lib/theme'
+import { outcomeLabel } from '@/lib/labels'
 
 // Handles exist only so edges have an anchor. They sit at the node center and are never visible.
 const handleStyle = {
@@ -27,23 +27,46 @@ function Handles() {
   )
 }
 
-const labelStyle = {
-  position: 'absolute',
-  top: '100%',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  marginTop: 6,
-  whiteSpace: 'nowrap',
-  fontSize: 13,
-  lineHeight: 1.2,
-  color: sky.body,
-  // a soft halo in the panel color keeps labels readable where an edge line crosses them
-  textShadow: `0 0 4px ${sky.surface}, 0 0 8px ${sky.surface}`,
-  pointerEvents: 'none',
+// Labels sit on the outward side of a node (chosen by the layout) so edges don't run through the text.
+const SIDES = {
+  right: { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: 9, textAlign: 'left' },
+  left: { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 9, textAlign: 'right' },
+  top: { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, textAlign: 'center' },
+  bottom: { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 8, textAlign: 'center' },
 }
 
-function fade(dim) {
-  return { opacity: dim ? 0.2 : 1, transition: `opacity ${motion.base}ms` }
+function Label({ side = 'bottom', color, weight = 400, title, children }) {
+  return (
+    <span
+      title={title}
+      style={{
+        position: 'absolute',
+        width: 'max-content',
+        maxWidth: 132,
+        fontSize: 12.5,
+        lineHeight: 1.25,
+        fontWeight: weight,
+        color,
+        // a faint halo in the panel color, only enough to stay legible where an edge passes behind the text
+        textShadow: `0 0 3px ${sky.surface}, 0 0 6px ${sky.surface}`,
+        pointerEvents: 'none',
+        transition: `color ${motion.base}ms`,
+        ...SIDES[side],
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+const fade = (dim) => ({ opacity: dim ? 0.35 : 1, transition: `opacity ${motion.base}ms` })
+
+function activateOnKey(e, onActivate) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    e.stopPropagation()
+    onActivate()
+  }
 }
 
 // Node sizes are the visible circle only, so the layout's centering stays exact; labels are absolutely positioned.
@@ -58,49 +81,50 @@ export function YouNode({ data }) {
           height: size,
           borderRadius: '50%',
           background: sky.heading,
-          boxShadow: `0 0 32px 12px ${sky.heading}80`,
+          color: sky.bg,
+          fontSize: 11,
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          // a hairline warm ring, no glow
+          boxShadow: `0 0 0 4px ${sky.surface}, 0 0 0 5px ${gold.color}66`,
         }}
-      />
-      <span style={{ ...labelStyle, color: sky.heading }}>You</span>
+      >
+        You
+      </div>
     </div>
   )
 }
 
 export function OutcomeNode({ data }) {
   const { size } = nodeStyles.outcome
-  const color = outcomeColor(data.key)
   return (
     <div style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}>
       <Handles />
       <div
         style={{
+          boxSizing: 'border-box',
           width: size,
           height: size,
           borderRadius: '50%',
-          background: color,
-          boxShadow: `0 0 16px 4px ${color}66`,
+          background: sky.surface, // hides the edge line behind the ring
+          border: `1.5px solid ${data.lit ? sky.heading : sky.textMuted}`,
+          transition: `border-color ${motion.base}ms`,
         }}
       />
-      <span style={labelStyle}>{OUTCOME_LABELS[data.key] ?? data.label}</span>
+      <Label side={data.side} color={data.lit ? sky.heading : sky.textMuted}>
+        {outcomeLabel(data.key)}
+      </Label>
     </div>
   )
 }
 
-const STAR_PATH = 'M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z' // 4-point star
-
 const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
-
-function activateOnKey(e, onActivate) {
-  if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault()
-    e.stopPropagation()
-    onActivate()
-  }
-}
 
 export function ClubNode({ data }) {
   const { size } = nodeStyles.club
-  const color = outcomeColor(data.primaryOutcome)
+  const emphasized = data.selected || data.hovered
   const name = data.label ?? ''
   return (
     <div
@@ -121,63 +145,33 @@ export function ClubNode({ data }) {
       style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}
     >
       <Handles />
-      {data.selected && (
-        <span
-          aria-hidden
-          style={{
-            position: 'absolute',
-            inset: -6,
-            borderRadius: '50%',
-            border: `1.5px solid ${sky.heading}`,
-          }}
-        />
-      )}
-      {data.pulse && <PulseRing size={size} />}
-      <svg
-        viewBox="0 0 24 24"
-        width={size}
-        height={size}
-        aria-hidden
+      {/* larger invisible hit area: the dot itself is only 9px */}
+      <span aria-hidden style={{ position: 'absolute', inset: -8, borderRadius: '50%' }} />
+      <div
         style={{
-          display: 'block',
-          opacity: data.brightness,
-          filter: `drop-shadow(0 0 5px ${color})`,
-          transform: data.hovered ? 'scale(1.2)' : 'none',
-          transition: `transform ${motion.fast}ms`,
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          background: emphasized ? gold.color : sky.heading,
+          opacity: emphasized ? 1 : data.brightness,
+          transform: emphasized ? 'scale(1.4)' : 'none',
+          // selected also gets a hairline ring, so the state isn't color alone
+          boxShadow: data.selected ? `0 0 0 3px ${sky.surface}, 0 0 0 4px ${gold.color}` : 'none',
+          transition: `transform ${motion.fast}ms, background-color ${motion.base}ms, opacity ${motion.base}ms`,
         }}
-      >
-        <path d={STAR_PATH} fill={color} />
-      </svg>
-      <span style={labelStyle} title={name}>
-        {truncate(name, 28)}
-      </span>
+      />
+      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name}>
+        {truncate(name, 34)}
+      </Label>
     </div>
   )
 }
 
-function PulseRing({ size }) {
-  return (
-    <span
-      aria-hidden
-      className="star-pulse"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        border: `2px solid ${gold.color}`,
-        pointerEvents: 'none',
-      }}
-    />
-  )
-}
-
+// The quietest layer: a tiny neutral dot, labelled only on hover or focus.
 export function EventNode({ data }) {
   const [active, setActive] = useState(false)
-  const dropbox = data.source === 'dropbox'
-  const style = dropbox ? nodeStyles.eventDropbox : nodeStyles.event
-  const { size } = style
+  const { size } = nodeStyles.event
+  const lit = data.lit || active
   const set = (on) => {
     setActive(on)
     data.onHover(on)
@@ -200,19 +194,60 @@ export function EventNode({ data }) {
       style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}
     >
       <Handles />
-      {/* larger invisible hit area: the dot itself is only 8px */}
-      <span aria-hidden style={{ position: 'absolute', inset: -8, borderRadius: '50%' }} />
-      {data.pulse && <PulseRing size={size} />}
+      <span aria-hidden style={{ position: 'absolute', inset: -9, borderRadius: '50%' }} />
+      {data.pulse && <Arrival />}
       <div
         style={{
           width: size,
           height: size,
           borderRadius: '50%',
-          background: style.background,
-          boxShadow: style.boxShadow,
+          background: lit ? gold.color : sky.textMuted,
+          opacity: lit ? 0.95 : 0.5,
+          transition: `background-color ${motion.base}ms, opacity ${motion.base}ms`,
         }}
       />
-      {active && <span style={{ ...labelStyle, color: sky.heading }}>{data.label}</span>}
+      {active && (
+        <Label side={data.side} color={sky.heading}>
+          {data.label}
+        </Label>
+      )}
     </div>
+  )
+}
+
+// A new Dropbox event just arrived: one restrained gold highlight (fade in, hold, fade out; see .arrival in index.css).
+function Arrival() {
+  return (
+    <span
+      aria-hidden
+      className="arrival"
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        width: 32,
+        height: 32,
+        marginLeft: -16,
+        marginTop: -16,
+        borderRadius: '50%',
+        border: `1.5px solid ${gold.color}`,
+        background: `${gold.muted}`,
+        pointerEvents: 'none',
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          width: 9,
+          height: 9,
+          marginLeft: -4.5,
+          marginTop: -4.5,
+          borderRadius: '50%',
+          background: gold.color,
+        }}
+      />
+    </span>
   )
 }

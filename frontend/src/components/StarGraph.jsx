@@ -5,15 +5,15 @@ import StarField from '@/components/StarField'
 import { ClubNode, EventNode, OutcomeNode, YouNode } from '@/components/StarNode'
 import { buildGraph } from '@/lib/buildGraph'
 import { radialLayout } from '@/lib/layout'
-import { clubBrightness, motion, sky } from '@/lib/theme'
+import { clubBrightness, gold, motion, sky } from '@/lib/theme'
 
 const nodeTypes = { you: YouNode, outcome: OutcomeNode, club: ClubNode, event: EventNode }
 const NO_PULSE = new Set()
-const EDGE_DIM = 0.2
 
-// Constellation lines: the star color at 18% (brighter when highlighted).
-const EDGE_STROKE = `${sky.stars}2E`
-const EDGE_STROKE_ACTIVE = `${sky.stars}99`
+// Edges are hairlines: nearly invisible until a club is focused, when its path turns gold.
+const EDGE = `${sky.heading}1A`
+const EDGE_EVENT = `${sky.heading}12` // event edges are the faintest
+const EDGE_DIM = 0.3
 
 export default function StarGraph({
   response,
@@ -34,10 +34,11 @@ export default function StarGraph({
     return () => clearTimeout(t)
   }, [])
 
-  // Focus = hovered club, else selected club. Everything not connected to it fades.
+  // Focus = hovered club, else selected club. The path that explains it stays bright; the rest recedes.
   const focusId = hoveredId ?? selectedId
+  const focusNodeId = focusId != null ? `club:${focusId}` : null
   const active = useMemo(() => {
-    const focusNode = focusId != null && graph.nodes.find((n) => n.id === `club:${focusId}`)
+    const focusNode = focusNodeId && graph.nodes.find((n) => n.id === focusNodeId)
     if (!focusNode) return null
     const ids = new Set(['you', focusNode.id])
     for (const e of graph.edges) {
@@ -47,7 +48,7 @@ export default function StarGraph({
       }
     }
     return ids
-  }, [graph, focusId])
+  }, [graph, focusNodeId])
 
   const useBrightness = graph.nodes.some((n) => n.type === 'club' && n.data?.last_updated)
 
@@ -67,9 +68,10 @@ export default function StarGraph({
             ...n.data,
             label: n.label,
             dim: active ? !active.has(n.id) : false,
+            lit: active ? active.has(n.id) : false,
             selected: n.type === 'club' && clubId === selectedId,
             hovered: n.type === 'club' && clubId === hoveredId,
-            pulse: pulseIds.has(n.id),
+            pulse: n.type === 'event' && pulseIds.has(n.id),
             brightness: useBrightness ? clubBrightness(n.data?.last_updated) : 1,
             onSelect: () => onSelect?.(clubId),
             onHover: (on) => onHover?.(on ? clubId : null),
@@ -83,6 +85,7 @@ export default function StarGraph({
     () =>
       graph.edges.map((e) => {
         const lit = active && active.has(e.source) && active.has(e.target)
+        const toEvent = e.target.startsWith('event:')
         return {
           id: `${e.source}->${e.target}`,
           source: e.source,
@@ -91,8 +94,8 @@ export default function StarGraph({
           focusable: false,
           selectable: false,
           style: {
-            stroke: lit ? EDGE_STROKE_ACTIVE : EDGE_STROKE,
-            strokeWidth: 1,
+            stroke: lit ? gold.color : toEvent ? EDGE_EVENT : EDGE,
+            strokeWidth: lit ? 1.25 : 1,
             opacity: active && !lit ? EDGE_DIM : 1,
             transition: `opacity ${motion.base}ms, stroke ${motion.base}ms`,
           },
@@ -113,9 +116,9 @@ export default function StarGraph({
         nodeTypes={nodeTypes}
         colorMode="dark"
         fitView
-        fitViewOptions={{ padding: 0.12 }}
+        fitViewOptions={{ padding: { top: '56px', bottom: '56px', left: '140px', right: '140px' } }}
         minZoom={0.4}
-        maxZoom={2}
+        maxZoom={1.6}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
@@ -128,7 +131,7 @@ export default function StarGraph({
         className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-muted-foreground"
         style={{ opacity: showHint ? 1 : 0, transition: `opacity ${motion.slow}ms` }}
       >
-        Tap a star to learn more.
+        Tap a club to see why it fits.
       </p>
     </div>
   )

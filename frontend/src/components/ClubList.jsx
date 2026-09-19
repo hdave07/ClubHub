@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import ClubCard, { ClubCardSkeleton } from '@/components/ClubCard'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
-export default function ClubList({ clubs = [], selectedId, hoveredId, onSelect, onHover, loading }) {
+export default function ClubList({ clubs = [], selectedId, hoveredId, highlightIds, onSelect, onHover, loading }) {
   const listRef = useRef(null)
 
   // Bring the selected card into view (graph clicks in Sprint 5).
@@ -17,7 +17,7 @@ export default function ClubList({ clubs = [], selectedId, hoveredId, onSelect, 
 
   return (
     <ScrollArea className="h-[70svh] w-full lg:h-full lg:w-[380px] lg:shrink-0">
-      <div ref={listRef} className="flex flex-col gap-3 p-1 pr-3">
+      <div ref={listRef} className="flex flex-col gap-2.5 p-1 pr-3">
         {loading
           ? [0, 1, 2, 3, 4].map((i) => <ClubCardSkeleton key={i} />)
           : clubs.map((club, i) => (
@@ -27,6 +27,7 @@ export default function ClubList({ clubs = [], selectedId, hoveredId, onSelect, 
                 rank={i + 1}
                 selected={club.id === selectedId}
                 hovered={club.id === hoveredId}
+                highlighted={highlightIds?.has(String(club.id)) ?? false}
                 onSelect={onSelect}
                 onHover={onHover}
               />

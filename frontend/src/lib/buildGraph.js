@@ -168,3 +168,19 @@ export function buildGraph(response) {
   }
   return capGraph(buildFromClubs(response))
 }
+
+/**
+ * Club ids whose next_event node is in pulseIds (a new Dropbox event just arrived), for the card highlight.
+ * @param {object[] | undefined} clubs
+ * @param {Set<string> | undefined} pulseIds event node ids like "event:88"
+ * @returns {Set<string>}
+ */
+export function clubIdsForPulse(clubs, pulseIds) {
+  const ids = new Set()
+  if (!pulseIds?.size) return ids
+  for (const c of clubs ?? []) {
+    const ev = c.next_event
+    if (ev && typeof ev === 'object' && pulseIds.has(`event:${ev.id ?? c.id}`)) ids.add(String(c.id))
+  }
+  return ids
+}

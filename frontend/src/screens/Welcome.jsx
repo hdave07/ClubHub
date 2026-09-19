@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { nodeStyles, sky } from '@/lib/theme'
+import { orb, sky } from '@/lib/theme'
 
 // [left %, top %] of the CSS-only stars
 const STARS = [
@@ -33,10 +33,10 @@ export default function Welcome({ onExplore, onSkip }) {
         aria-hidden
         className="twinkle relative mb-8 rounded-full"
         style={{
-          width: nodeStyles.you.size,
-          height: nodeStyles.you.size,
-          background: nodeStyles.you.background,
-          boxShadow: nodeStyles.you.boxShadow,
+          width: orb.size,
+          height: orb.size,
+          background: orb.background,
+          boxShadow: orb.boxShadow,
         }}
       />
 
