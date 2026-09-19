@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     dropbox_refresh_token: str = ""
     # App-folder access: paths are relative to Dropbox/Apps/<app-name>/
     dropbox_inbox_path: str = "/Inbox"
+    # Set DROPBOX_WATCHER_ENABLED=0 to stop the poller starting with the app --
+    # useful when working on the frontend, since uvicorn --reload restarts on
+    # every save and each restart would re-scan the inbox.
+    dropbox_watcher_enabled: bool = True
 
     sop_base_url: str = "https://sop.utoronto.ca/wp-json"
     sop_campus: str = "St. George"

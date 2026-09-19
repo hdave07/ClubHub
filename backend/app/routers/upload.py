@@ -1,0 +1,136 @@
+"""POST /upload -- a user photographs a flier in the app and it becomes an event.
+
+The second entrance into the same pipeline the Dropbox watcher uses. The flow is
+deliberately "store first, then read":
+
+    bytes from the browser
+      -> dropbox_store.upload_file()   Dropbox is the durable store for every
+                                       file, however it arrived
+      -> ingest.process_file()         the same function the watcher calls
+      -> Event rows + a provenance link back to the uploaded image
+
+Uploading to Dropbox before extracting is what keeps Event.dropbox_link
+meaningful for user uploads too: an AI-extracted event is only as trustworthy as
+the ability to click through and see the poster it came from.
+
+Writing the IngestLog row at upload time (process_file does this) is also what
+stops the watcher re-processing the same file when it next scans the folder.
+"""
+
+import asyncio
+
+from fastapi import APIRouter, HTTPException, UploadFile
+from sqlmodel import Session
+
+from app.database import engine
+from app.schemas import UploadedClub, UploadedEvent, UploadResponse
+from app.services.dropbox_store import MIME_TYPES, mime_type_for, upload_file
+from app.services.ingest import IngestResult, process_file
+
+router = APIRouter(tags=["upload"])
+
+# Claude's limits are far higher, but a flier photo has no business being larger
+# than this, and an unbounded read is a trivial way to exhaust memory.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+_MESSAGES = {
+    "no_events": "We read the file but couldn't find an event on it.",
+    "duplicate": "We've already processed this file.",
+    "failed": "We couldn't read this file.",
+}
+
+
+def _store_and_process(data: bytes, filename: str) -> IngestResult:
+    """Upload to Dropbox and run the pipeline. Synchronous, runs in a worker thread.
+
+    Opens its own session rather than accepting one from the request: the work
+    happens on a different thread, and a session handed across the boundary would
+    be used from two threads over its lifetime.
+    """
+    inbox_file = upload_file(data, filename)
+    with Session(engine) as session:
+        return process_file(session, inbox_file)
+
+
+def _describe(result: IngestResult) -> str:
+    if result.status != "processed":
+        return _MESSAGES.get(result.status, "Something went wrong.")
+
+    published = result.published_count
+    review = len(result.events) - published
+    club = result.club_name or "this club"
+
+    if published and not review:
+        return f"Added {published} event{'s' if published > 1 else ''} for {club}."
+    if published and review:
+        return (
+            f"Added {published} event{'s' if published > 1 else ''} for {club}. "
+            f"{review} needs checking before it goes live."
+        )
+    return (
+        f"We found {len(result.events)} event{'s' if len(result.events) > 1 else ''} "
+        f"for {club}, but couldn't confirm the details -- it's waiting for review."
+    )
+
+
+@router.post("/upload", response_model=UploadResponse)
+async def upload_flier(file: UploadFile) -> UploadResponse:
+    """Accept a flier image or PDF, extract its events, and return what we found."""
+    filename = (file.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    if mime_type_for(filename) is None:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                "We can read images and PDFs. "
+                f"Supported: {', '.join(sorted(MIME_TYPES))}"
+            ),
+        )
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="The file is empty.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File is too large (max {MAX_UPLOAD_BYTES // 1024 // 1024} MB).",
+        )
+
+    # Dropbox upload + Claude extraction are both blocking and take seconds.
+    # On the event loop they would stall every other request for the duration.
+    try:
+        result = await asyncio.to_thread(_store_and_process, data, filename)
+    except Exception as e:
+        # Dropbox or Anthropic being unreachable is an upstream failure, not the
+        # user's fault -- say so rather than returning a generic 500.
+        raise HTTPException(
+            status_code=502, detail=f"Couldn't process the file right now: {e}"
+        ) from e
+
+    return UploadResponse(
+        status=result.status,
+        message=_describe(result),
+        club=(
+            UploadedClub(
+                id=result.club_id, name=result.club_name, created=result.club_created
+            )
+            if result.club_id and result.club_name
+            else None
+        ),
+        events=[
+            UploadedEvent(
+                id=e.id,
+                title=e.title,
+                start=e.start,
+                location=e.location,
+                status=e.status,
+                source_file=result.file.name,
+                dropbox_link=e.dropbox_link,
+            )
+            for e in result.events
+        ],
+        confidence=result.confidence,
+        uncertainties=result.uncertainties,
+    )

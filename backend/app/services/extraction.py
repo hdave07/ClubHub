@@ -34,50 +34,86 @@ CAMPUS_TZ = ZoneInfo("America/Toronto")
 # pending_review, so it never reaches the live feed unreviewed.
 CONFIDENCE_THRESHOLD = 0.8
 
+def _nullable(kind: str, description: str | None = None) -> dict:
+    """A field that may be null.
+
+    Written as anyOf rather than {"type": ["string", "null"]} because strict mode
+    does not accept JSON-Schema type-unions -- and strict mode is what stops the
+    model returning `events` as a list of strings, which it did on one run and
+    which crashed the pipeline.
+    """
+    schema = {"anyOf": [{"type": kind}, {"type": "null"}]}
+    if description:
+        schema["description"] = description
+    return schema
+
+
+# strict=True makes the API guarantee the arguments validate against this schema.
+# Every object therefore needs additionalProperties:false and a `required` listing
+# ALL its properties -- nullable ones are still required, they just may be null.
 EXTRACTION_TOOL_SCHEMA = {
     "name": "extract_club_file",
     "description": "Structured extraction from a club-dropped poster/PDF/doc.",
+    "strict": True,
     "input_schema": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
             "doc_type": {"type": "string", "enum": ["poster", "schedule", "roster", "other"]},
-            "club_name_guess": {"type": ["string", "null"]},
+            "club_name_guess": _nullable("string"),
             "events": {
                 "type": "array",
                 "items": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "title": {"type": "string"},
-                        "start": {
-                            "type": ["string", "null"],
-                            "description": (
-                                "Local Toronto wall-clock time as naive ISO 8601 "
-                                "(2026-09-24T19:00:00). No UTC offset, no 'Z'. "
-                                "Null if the date cannot be determined without guessing."
-                            ),
-                        },
-                        "end": {
-                            "type": ["string", "null"],
-                            "description": "Same format as start. Null if not stated.",
-                        },
-                        "location": {"type": ["string", "null"]},
-                        "description": {"type": ["string", "null"]},
-                        "rsvp_url": {"type": ["string", "null"]},
+                        "start": _nullable(
+                            "string",
+                            "Local Toronto wall-clock time as naive ISO 8601 "
+                            "(2026-09-24T19:00:00). No UTC offset, no 'Z'. "
+                            "Null if the date cannot be determined without guessing.",
+                        ),
+                        "end": _nullable("string", "Same format as start. Null if not stated."),
+                        "location": _nullable("string"),
+                        "description": _nullable("string"),
+                        "rsvp_url": _nullable("string"),
                     },
-                    "required": ["title"],
+                    "required": [
+                        "title", "start", "end", "location", "description", "rsvp_url",
+                    ],
                 },
             },
             "club_updates": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
-                    "meeting_info": {"type": ["string", "null"]},
-                    "links": {"type": "object"},
+                    "meeting_info": _nullable("string"),
+                    # An array of pairs rather than a free-form object: strict mode
+                    # needs additionalProperties:false, which would forbid the
+                    # arbitrary keys a {name: url} map depends on.
+                    "links": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "label": {"type": "string"},
+                                "url": {"type": "string"},
+                            },
+                            "required": ["label", "url"],
+                        },
+                    },
                 },
+                "required": ["meeting_info", "links"],
             },
-            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "confidence": {"type": "number"},
             "uncertainties": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["doc_type", "events", "confidence", "uncertainties"],
+        "required": [
+            "doc_type", "club_name_guess", "events", "club_updates",
+            "confidence", "uncertainties",
+        ],
     },
 }
 
@@ -129,15 +165,37 @@ def get_client() -> anthropic.Anthropic:
     return _client
 
 
-def decide_status(title: str | None, start: datetime | None, confidence: float) -> str:
+def has_time_component(value: str | None) -> bool:
+    """Did the model give a time of day, or only a date?
+
+    A bare ISO date is exactly "YYYY-MM-DD" (10 characters); anything longer
+    carries a time. Length is the reliable test here because fromisoformat
+    happily accepts the date-only form and silently returns midnight -- the value
+    looks like a fully-specified datetime afterwards, with nothing to distinguish
+    "the poster said midnight" from "the poster didn't say".
+    """
+    return bool(value) and len(value.strip()) > 10
+
+
+def decide_status(
+    title: str | None,
+    start: datetime | None,
+    confidence: float,
+    has_time: bool = True,
+) -> str:
     """The safety rule, as a pure function.
 
-    Auto-publish only when we have both a title and a resolved start time AND the
-    model was confident. Everything else waits for a human. A wrong date on the
-    live feed is the single most damaging failure mode, so the bar to reach it is
+    Auto-publish only when we have a title, a resolved start, a time of day, and
+    model confidence. Everything else waits for a human. A wrong date on the live
+    feed is the single most damaging failure mode, so the bar to reach it is
     deliberately explicit and in one place.
+
+    `has_time` exists because a date-only poster parses to midnight and would
+    otherwise publish as "12:00 AM" -- a time nobody stated and which is almost
+    certainly wrong. The event is real; the hour isn't known, so it goes to
+    review rather than onto the feed with a fabricated start time.
     """
-    if title and start is not None and confidence >= CONFIDENCE_THRESHOLD:
+    if title and start is not None and has_time and confidence >= CONFIDENCE_THRESHOLD:
         return "published"
     return "pending_review"
 
@@ -276,14 +334,23 @@ def extract_file(
     if raw is None:
         raise ExtractionError(f"No tool_use block in response (stop_reason={response.stop_reason})")
 
-    confidence = float(raw.get("confidence") or 0.0)
+    try:
+        confidence = min(1.0, max(0.0, float(raw.get("confidence") or 0.0)))
+    except (TypeError, ValueError):
+        confidence = 0.0
 
     events = []
     for item in raw.get("events") or []:
+        # strict mode should guarantee dicts here, but this ran once against a
+        # response whose `events` was a list of bare strings and crashed the whole
+        # pipeline. A malformed item should cost one event, not the file.
+        if not isinstance(item, dict):
+            continue
         title = item.get("title")
         if not title:
             continue  # title is required by the schema; skip rather than write a blank row
-        start = to_utc(item.get("start"))
+        start_raw = item.get("start")
+        start = to_utc(start_raw)
         events.append(
             ExtractedEvent(
                 title=title,
@@ -292,8 +359,10 @@ def extract_file(
                 location=item.get("location"),
                 description=item.get("description"),
                 rsvp_url=item.get("rsvp_url"),
-                status=decide_status(title, start, confidence),
-                start_local=item.get("start"),
+                status=decide_status(
+                    title, start, confidence, has_time_component(start_raw)
+                ),
+                start_local=start_raw,
             )
         )
 
