@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { OUTCOME_LABELS, normalizeOutcome } from '@/types'
 import { gold, outcomeColor, outcomeColors, sky } from '@/lib/theme'
+import ClubCard, { ClubCardSkeleton } from '@/components/ClubCard'
 import { previewClubs } from './previewClubs'
 
 function Swatch({ name, color }) {
@@ -106,6 +107,20 @@ export default function Preview() {
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <Input placeholder="What are you studying?" />
           <Textarea placeholder="e.g. first-year CS, want internships and friends, not too intense" />
+        </div>
+      </Section>
+
+      <Section title="Club cards">
+        <div className="grid gap-4 md:grid-cols-3">
+          {previewClubs.map((c, i) => (
+            <ClubCard key={c.id} club={c} rank={i + 1} />
+          ))}
+        </div>
+        <p className="mt-6 mb-3 text-xs tracking-widest text-muted-foreground">STATES: SELECTED · HOVERED · SKELETON</p>
+        <div className="grid gap-4 md:grid-cols-3">
+          <ClubCard club={previewClubs[0]} rank={1} selected />
+          <ClubCard club={previewClubs[1]} rank={2} hovered />
+          <ClubCardSkeleton />
         </div>
       </Section>
 
