@@ -24,22 +24,36 @@ export const isLimitedSummary = (summary) =>
 
 const validTime = (iso) => typeof iso === 'string' && !Number.isNaN(Date.parse(iso))
 
-const EMAIL = /[^\s<>()"',;]+@[^\s<>()"',;]+\.[^\s<>()"',;]+/g
-const PHONE = /[+(]?\d[\d\s().-]{7,}\d/g
+const EMAIL_LIKE = /\S+@\S+/
+const PHONE_LIKE = /[+(]?\d[\d\s().-]{7,}\d/g
+
+const hasContact = (sentence) =>
+  EMAIL_LIKE.test(sentence) || (sentence.match(PHONE_LIKE) ?? []).some((m) => m.replace(/\D/g, '').length >= 10)
 
 /**
- * Free text (summaries, meeting info, event titles) can have contact details typed into it.
- * Removes email addresses and phone numbers (10+ digits) so they never reach the screen.
+ * Free text (summaries, meeting info, event titles) can have contact details typed into it. Any sentence that
+ * contains an email address or a phone number (10+ digits) is dropped whole, plus a lead-in right before it that
+ * ends in "?" or ":" (for example "Questions?"), so nothing dangles. Returns "" when nothing is left.
  * @param {string | null | undefined} text
  */
 export function scrubText(text) {
   if (typeof text !== 'string') return text ?? null
-  return text
-    .replace(EMAIL, '')
-    .replace(PHONE, (m) => (m.replace(/\D/g, '').length >= 10 ? '' : m))
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\s+([.,;:!?])/g, '$1')
-    .trim()
+  // Split after sentence-ending punctuation that is followed by whitespace, so dots inside addresses stay together.
+  const parts = text.split(/([.!?]+(?:\s+|$))/)
+  const sentences = []
+  for (let i = 0; i < parts.length; i += 2) {
+    const sentence = parts[i] + (parts[i + 1] ?? '')
+    if (sentence.trim()) sentences.push(sentence)
+  }
+  const kept = []
+  for (const sentence of sentences) {
+    if (!hasContact(sentence)) {
+      kept.push(sentence)
+      continue
+    }
+    if (/[?:]\s*$/.test(kept.at(-1)?.trim() ?? '')) kept.pop()
+  }
+  return kept.join('').trim()
 }
 
 /**
@@ -74,6 +88,7 @@ export function upcomingEvents(events, now = new Date()) {
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
     .slice(0, UPCOMING_LIMIT)
     .map(toEventLite)
+    .filter((ev) => ev.title)
 }
 
 const humanize = (key) => {
@@ -125,7 +140,7 @@ export function sanitizeClub(raw, now = new Date()) {
   const text = (v) => str(scrubText(v))
   return {
     id: String(c.id ?? ''),
-    summary: typeof c.summary === 'string' ? scrubText(c.summary) : null,
+    summary: typeof c.summary === 'string' ? scrubText(c.summary) || null : null,
     commitment: str(c.commitment),
     meeting_info: text(c.meeting_info),
     last_updated: str(c.last_updated),

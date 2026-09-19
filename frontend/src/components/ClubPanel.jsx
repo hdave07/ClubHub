@@ -93,7 +93,8 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
     commitment && commitment !== 'unknown' ? `${capitalize(commitment)} commitment` : null,
   ].filter(Boolean)
 
-  const summary = detail ? detail.summary : scrubText(club.summary)
+  const why = scrubText(club.why_it_fits)
+  const summary = detail ? detail.summary : scrubText(club.summary) || null
   // Before details arrive (or if they can't), fall back to the match's next event.
   const events = detail ? detail.events : club.next_event ? [toEventLite(club.next_event)] : []
   const links = detail?.links ?? []
@@ -129,9 +130,9 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
       </header>
 
       <div ref={scrollRef} className="flex flex-col gap-5 overflow-y-auto px-5 pt-4 pb-5">
-        {club.why_it_fits && (
+        {why && (
           <Section title="Why it fits you">
-            <p className="text-sm leading-relaxed text-foreground/90">{scrubText(club.why_it_fits)}</p>
+            <p className="text-sm leading-relaxed text-foreground/90">{why}</p>
           </Section>
         )}
 
