@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     dropbox_app_key: str = ""
     dropbox_app_secret: str = ""
     dropbox_refresh_token: str = ""
-    dropbox_inbox_path: str = "/CampusCompass/Inbox"
+    # App-folder access: paths are relative to Dropbox/Apps/<app-name>/
+    dropbox_inbox_path: str = "/Inbox"
 
     sop_base_url: str = "https://sop.utoronto.ca/wp-json"
     sop_campus: str = "St. George"

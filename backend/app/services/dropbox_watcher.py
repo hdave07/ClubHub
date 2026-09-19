@@ -11,22 +11,19 @@ Flow:
      embed, and log the result in IngestLog.
 
 Uses the refresh-token (offline access) flow so the access token doesn't
-expire mid-demo -- set DROPBOX_REFRESH_TOKEN in .env, not a raw token.
+All Dropbox I/O lives in dropbox_store.py; this module owns only the loop.
 """
-
-import dropbox
-
-from app.config import settings
-
-
-def get_client() -> dropbox.Dropbox:
-    return dropbox.Dropbox(
-        app_key=settings.dropbox_app_key,
-        app_secret=settings.dropbox_app_secret,
-        oauth2_refresh_token=settings.dropbox_refresh_token,
-    )
 
 
 async def watch() -> None:
-    """TODO: polling loop over settings.dropbox_inbox_path."""
+    """TODO: polling loop over settings.dropbox_inbox_path.
+
+    Use dropbox_store.list_inbox() / download_file() -- this module never talks to the
+    Dropbox SDK itself.
+
+    dropbox_store is synchronous (the SDK is requests-based, with no asyncio support),
+    so every call from this loop must go through `await asyncio.to_thread(...)`.
+    Calling it directly from an async def blocks the event loop and stalls every API
+    request for the duration of each poll.
+    """
     raise NotImplementedError
