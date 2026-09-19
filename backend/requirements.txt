@@ -3,7 +3,7 @@ python-multipart
 uvicorn[standard]
 sqlmodel
 chromadb
-sentence-transformers
+voyageai
 anthropic
 dropbox
 rapidfuzz

@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     anthropic_api_key: str = ""
+    voyage_api_key: str = ""
+    voyage_embedding_model: str = "voyage-4-lite"
+    voyage_embedding_dimensions: int = 1024
 
     dropbox_app_key: str = ""
     dropbox_app_secret: str = ""
