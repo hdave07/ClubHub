@@ -6,7 +6,7 @@ import StarField from '@/components/StarField'
 import { ClubNode, EventNode, OutcomeNode, YouNode } from '@/components/StarNode'
 import { buildGraph } from '@/lib/buildGraph'
 import { radialLayout } from '@/lib/layout'
-import { clubBrightness, gold, motion, sky } from '@/lib/theme'
+import { clubBrightness, gold, motion, nodeStyles, sky } from '@/lib/theme'
 
 const nodeTypes = { you: YouNode, outcome: OutcomeNode, club: ClubNode, event: EventNode }
 const NO_PULSE = new Set()
@@ -31,6 +31,14 @@ function fitPadding(panelOpen) {
       ? { ...BASE_PADDING, left: 100, right: PANEL_WIDTH + PANEL_GAP + 24 }
       : BASE_PADDING
   return { top: `${p.top}px`, bottom: `${p.bottom}px`, left: `${p.left}px`, right: `${p.right}px` }
+}
+
+// With the panel open the graph is small and the panel covers its right side, so the focused club's label goes above
+// or below its dot (whichever side its event dot is not on) and grows toward the middle, never outward.
+function panelLabelSide(club, event) {
+  const centerX = club.position.x + nodeStyles.club.size / 2
+  const vertical = event && event.position.y < club.position.y ? 'bottom' : 'top'
+  return `${vertical}${centerX > 0 ? 'End' : 'Start'}`
 }
 
 export default function StarGraph({
@@ -80,9 +88,10 @@ export default function StarGraph({
 
   const useBrightness = graph.nodes.some((n) => n.type === 'club' && n.data?.last_updated)
 
-  const nodes = useMemo(
-    () =>
-      graph.nodes.map((n) => {
+  const nodes = useMemo(() => {
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]))
+    const eventOfClub = new Map(graph.edges.filter((e) => e.target.startsWith('event:')).map((e) => [e.source, byId.get(e.target)]))
+    return graph.nodes.map((n) => {
         const clubId = n.data?.clubId
         return {
           id: n.id,
@@ -95,8 +104,11 @@ export default function StarGraph({
           data: {
             ...n.data,
             label: n.label,
+            side: panelOpen && n.type === 'club' ? panelLabelSide(n, eventOfClub.get(n.id)) : n.data?.side,
             dim: active ? !active.has(n.id) : false,
             lit: active ? active.has(n.id) : false,
+            // with the club panel open the graph is small: only the focused club's path keeps its labels
+            labelHidden: panelOpen && !!active && !active.has(n.id),
             selected: n.type === 'club' && clubId === selectedId,
             hovered: n.type === 'club' && clubId === hoveredId,
             pulse: n.type === 'event' && pulseIds.has(n.id),
@@ -105,9 +117,8 @@ export default function StarGraph({
             onHover: (on) => onHover?.(on ? clubId : null),
           },
         }
-      }),
-    [graph, active, selectedId, hoveredId, pulseIds, useBrightness, onSelect, onHover],
-  )
+      })
+  }, [graph, active, panelOpen, selectedId, hoveredId, pulseIds, useBrightness, onSelect, onHover])
 
   const edges = useMemo(
     () =>
@@ -146,6 +157,7 @@ export default function StarGraph({
         fitView
         fitViewOptions={{ padding: fitPadding(panelOpen) }}
         onInit={setFlow}
+        attributionPosition="bottom-left"
         minZoom={0.4}
         maxZoom={1.6}
         nodesDraggable={false}
@@ -158,7 +170,7 @@ export default function StarGraph({
       />
       <p
         className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-muted-foreground"
-        style={{ opacity: showHint ? 1 : 0, transition: `opacity ${motion.slow}ms` }}
+        style={{ opacity: showHint && !panelOpen ? 1 : 0, transition: `opacity ${motion.slow}ms` }}
       >
         Tap a club to see why it fits.
       </p>

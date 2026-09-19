@@ -33,9 +33,14 @@ const SIDES = {
   left: { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 9, textAlign: 'right' },
   top: { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, textAlign: 'center' },
   bottom: { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 8, textAlign: 'center' },
+  // With the club panel open: above or below the dot, growing toward the middle of the graph (never outward).
+  topStart: { bottom: '100%', left: -2, marginBottom: 8, textAlign: 'left' },
+  topEnd: { bottom: '100%', right: -2, marginBottom: 8, textAlign: 'right' },
+  bottomStart: { top: '100%', left: -2, marginTop: 8, textAlign: 'left' },
+  bottomEnd: { top: '100%', right: -2, marginTop: 8, textAlign: 'right' },
 }
 
-function Label({ side = 'bottom', color, weight = 400, title, children }) {
+function Label({ side = 'bottom', color, weight = 400, title, hidden = false, children }) {
   return (
     <span
       title={title}
@@ -50,7 +55,8 @@ function Label({ side = 'bottom', color, weight = 400, title, children }) {
         // a faint halo in the panel color, only enough to stay legible where an edge passes behind the text
         textShadow: `0 0 3px ${sky.surface}, 0 0 6px ${sky.surface}`,
         pointerEvents: 'none',
-        transition: `color ${motion.base}ms`,
+        opacity: hidden ? 0 : 1,
+        transition: `color ${motion.base}ms, opacity ${motion.base}ms`,
         ...SIDES[side],
       }}
     >
@@ -113,7 +119,7 @@ export function OutcomeNode({ data }) {
           transition: `border-color ${motion.base}ms`,
         }}
       />
-      <Label side={data.side} color={data.lit ? sky.heading : sky.textMuted}>
+      <Label side={data.side} color={data.lit ? sky.heading : sky.textMuted} hidden={data.labelHidden}>
         {outcomeLabel(data.key)}
       </Label>
     </div>
@@ -160,7 +166,7 @@ export function ClubNode({ data }) {
           transition: `transform ${motion.fast}ms, background-color ${motion.base}ms, opacity ${motion.base}ms`,
         }}
       />
-      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name}>
+      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name} hidden={data.labelHidden}>
         {truncate(name, 34)}
       </Label>
     </div>
