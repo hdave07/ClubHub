@@ -25,3 +25,16 @@ export async function getClub(id, { signal } = {}) {
   const { data } = await api.get(`/clubs/${encodeURIComponent(id)}`, { signal })
   return data
 }
+
+/**
+ * GET /events?since= -> published events starting at or after `since` (raw database rows).
+ * The backend compares `since` with naive UTC columns, so it is sent as naive UTC ("2026-09-19T23:40:00").
+ * Display only through toLiveEvents (lib/events.js).
+ * @param {{ since?: Date, signal?: AbortSignal }} [opts]
+ * @returns {Promise<object[]>}
+ */
+export async function getEvents({ since, signal } = {}) {
+  const params = since ? { since: since.toISOString().slice(0, 19) } : undefined
+  const { data } = await api.get('/events', { params, signal })
+  return data
+}
