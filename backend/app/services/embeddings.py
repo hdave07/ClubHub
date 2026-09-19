@@ -135,13 +135,26 @@ def query_events(blurb: str, top_k: int = 20, *, client: Any | None = None) -> l
     return _query(get_collection(EVENT_COLLECTION), blurb, top_k, client=client)
 
 
+MAX_DESCRIPTION_CHARS = 1500
+
+
 def club_to_document(club: Club) -> str:
-    """Use enriched fields rather than unbounded raw HTML when possible."""
+    """Summary plus a bounded slice of the source description.
+
+    The summary and the description both go in, rather than summary-or-description.
+    Tags are a controlled vocabulary now (models.FIXED_TAGS), so they no longer carry
+    club-specific terms -- "k-pop", "poker", "symphonic band" only reach the vector
+    through the raw description. Dropping it once a club was enriched would quietly
+    strip out exactly the words a student is most likely to search by.
+
+    Still truncated: raw SOP descriptions are unbounded and the tail is usually
+    boilerplate (contact details, meeting logistics) rather than identifying content.
+    """
     sections = [f"Club: {club.name}"]
     if club.summary:
         sections.append(f"Summary: {club.summary}")
-    elif club.description_raw:
-        sections.append(f"Description: {club.description_raw}")
+    if club.description_raw:
+        sections.append(f"Description: {club.description_raw[:MAX_DESCRIPTION_CHARS]}")
     if club.outcomes:
         sections.append(f"Student outcomes: {', '.join(club.outcomes)}")
     if club.tags:

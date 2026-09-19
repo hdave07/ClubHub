@@ -76,3 +76,74 @@ FIXED_OUTCOMES = [
     "Wellness and recreation",
     "Academic/research",
 ]
+
+# Controlled tag vocabulary. Free-form tags drifted badly: a 25-club pilot produced 148
+# unique tags across 177 assignments (only 14% reused), with near-duplicates like
+# academic / academic inquiry / academic support and culture / afghan culture /
+# african culture. That's unusable for filtering or keyword matching.
+#
+# Tags are a CLASSIFICATION, not a factual claim, so picking from this list doesn't
+# violate the "never invent detail" rule -- summary and commitment stay conservative.
+# Club-specific terms ("k-pop", "poker") live in the embedding document via the raw
+# description (see embeddings.club_to_document), not here.
+#
+# Derived from the 16 SOP interest areas plus the tags that actually recurred in the
+# pilot. Keep it flat and lowercase; enrichment enforces it as a JSON-schema enum.
+FIXED_TAGS = [
+    # Fields of study and practice
+    "artificial intelligence",
+    "technology",
+    "engineering",
+    "science",
+    "health and medicine",
+    "mental health",
+    "business",
+    "finance",
+    "entrepreneurship",
+    "consulting",
+    "law",
+    "politics",
+    "humanities",
+    "social sciences",
+    "languages",
+    "education",
+    # Arts and creative
+    "music",
+    "dance",
+    "theatre",
+    "visual arts",
+    "creative writing",
+    "film and media",
+    "design",
+    # What the club actually does
+    "workshops",
+    "competitions",
+    "conferences",
+    "research",
+    "mentorship",
+    "volunteering",
+    "networking",
+    "social events",
+    "performance",
+    "training and lessons",
+    "hackathons",
+    "publishing",
+    "fundraising",
+    # Community and identity
+    "cultural heritage",
+    "faith and spirituality",
+    "international students",
+    "graduate students",
+    "advocacy",
+    "human rights",
+    "equity and inclusion",
+    "community outreach",
+    "sustainability",
+    "student government",
+    # Recreation
+    "sports",
+    "fitness",
+    "games",
+    "outdoors",
+    "food",
+]
