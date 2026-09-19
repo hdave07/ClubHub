@@ -69,6 +69,13 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const [hoveredId, setHoveredId] = useState(null)
   const [previewClubs, setPreviewClubs] = useState(null)
   const [previewDetails, setPreviewDetails] = useState(null)
+  const [SimulateDrop, setSimulateDrop] = useState(null)
+
+  // Dev only: "Simulate Dropbox drop" button (src/dev/SimulateDrop.jsx). Stripped from production builds.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    import('@/dev/SimulateDrop').then((m) => setSimulateDrop(() => m.default))
+  }, [])
 
   useEffect(() => {
     if (!USE_PREVIEW_DATA) return
@@ -93,7 +100,7 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
       .map((event) => ({ key: `${event.id}:${Date.now()}`, clubId: event.club_id, event }))
     if (added.length) setToasts((prev) => [...prev, ...added].slice(-MAX_TOASTS))
   }, [])
-  const { arrivals, pulseIds } = useLiveEvents({
+  const { arrivals, pulseIds, inject } = useLiveEvents({
     clubIds,
     enabled: !USE_PREVIEW_DATA && !loading && !error && clubIds.length > 0,
     onArrive,
@@ -211,6 +218,8 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
           />
         </div>
       )}
+
+      {SimulateDrop && !isLoading && <SimulateDrop clubs={matched} onDrop={inject} />}
 
       <ArrivalToast
         arrivals={toasts.map((t) => ({ ...t, clubName: clubName(t.clubId) }))}
