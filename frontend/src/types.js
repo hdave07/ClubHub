@@ -17,13 +17,28 @@ export const OUTCOME_LABELS = {
   academic: 'Academic/research',
 }
 
+// Backend currently sends display labels (e.g. "Make friends", backend/app/models.py FIXED_OUTCOMES);
+// UI always works with keys via normalizeOutcome.
+/**
+ * Accepts an outcome key ("make_friends") or label ("Make friends") and returns the key.
+ * @param {string} value
+ * @returns {Outcome | null} null for unknown values
+ */
+export function normalizeOutcome(value) {
+  if (typeof value !== 'string') return null
+  const v = value.trim()
+  if (Object.hasOwn(OUTCOME_LABELS, v)) return /** @type {Outcome} */ (v)
+  const key = Object.keys(OUTCOME_LABELS).find((k) => OUTCOME_LABELS[k] === v)
+  return /** @type {Outcome | undefined} */ (key) ?? null
+}
+
 /** @typedef {"casual" | "moderate" | "intense" | "unknown"} Commitment */
 
 /**
  * Only published events reach the frontend (main plan safety rule).
  * No organizer or contact fields (main plan privacy rule).
  * @typedef {Object} EventLite
- * @property {number} id
+ * @property {string} id
  * @property {string} title
  * @property {string} start ISO string
  * @property {string} [location]
@@ -34,14 +49,14 @@ export const OUTCOME_LABELS = {
 
 /**
  * Item from GET /events?since=
- * @typedef {EventLite & { club_id: number }} LiveEvent
+ * @typedef {EventLite & { club_id: string }} LiveEvent
  */
 
 /**
  * @typedef {Object} ClubMatch
  * @property {string} id
  * @property {string} name
- * @property {string} summary
+ * @property {string | null} summary null or "limited info" means the limited-info state
  * @property {Outcome[]} outcomes
  * @property {string[]} tags
  * @property {Commitment} commitment
