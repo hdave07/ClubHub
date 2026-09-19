@@ -42,14 +42,11 @@ export default function Welcome({ onExplore, onSkip }) {
 
       <p className="relative text-xs tracking-[0.3em] text-muted-foreground">WELCOME TO</p>
       <h1 className="relative mt-3 text-5xl md:text-6xl">Your U of T Universe</h1>
-      <Badge variant="outline" className="relative mt-5">
+      <Badge variant="outline" className="relative mt-6 h-8 px-4 text-sm">
         University of Toronto · St. George
       </Badge>
-      <p className="relative mt-6 max-w-md text-muted-foreground">
-        1,250 clubs are out there, waiting to be found. Why not by you?
-      </p>
 
-      <div className="relative mt-10 flex flex-col items-center gap-3">
+      <div className="relative mt-8 flex flex-col items-center gap-3">
         <Button size="lg" onClick={onExplore}>
           Explore →
         </Button>
