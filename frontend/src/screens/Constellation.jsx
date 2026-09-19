@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ArrivalToast from '@/components/ArrivalToast'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
 import StarField from '@/components/StarField'
@@ -15,6 +16,21 @@ import { useLiveEvents } from '@/lib/useLiveEvents'
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
 const noop = () => {}
+const MAX_TOASTS = 3
+
+const cardFor = (clubId) =>
+  [...document.querySelectorAll('[data-club-id]')].find((n) => n.dataset.clubId === String(clubId)) ?? null
+
+/** Is at least half of this club's card on screen (inside the list's scroll area and the window)? */
+function cardOnScreen(clubId) {
+  const el = cardFor(clubId)
+  if (!el) return false
+  const r = el.getBoundingClientRect()
+  const half = r.height / 2
+  const inside = (box) => r.bottom - half > box.top && r.top + half < box.bottom
+  const viewport = el.closest('[data-slot="scroll-area-viewport"]')?.getBoundingClientRect()
+  return (!viewport || inside(viewport)) && inside({ top: 0, bottom: window.innerHeight })
+}
 
 function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds, club, rank, panel, onClose }) {
   return (
@@ -69,12 +85,33 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   // Live Dropbox arrivals (main plan flow 3): merged into the cards, the graph and the panel; each one gets a single
   // gold highlight. Preview mode has no backend to poll; arrivals there come from the dev "Simulate drop".
   const clubIds = useMemo(() => matched.map((c) => String(c.id)), [matched])
+  const [toasts, setToasts] = useState([])
+  // An arrival whose card is out of view also gets a toast, so it isn't missed.
+  const onArrive = useCallback((events) => {
+    const added = events
+      .filter((e) => !cardOnScreen(e.club_id))
+      .map((event) => ({ key: `${event.id}:${Date.now()}`, clubId: event.club_id, event }))
+    if (added.length) setToasts((prev) => [...prev, ...added].slice(-MAX_TOASTS))
+  }, [])
   const { arrivals, pulseIds } = useLiveEvents({
     clubIds,
     enabled: !USE_PREVIEW_DATA && !loading && !error && clubIds.length > 0,
+    onArrive,
   })
   const clubs = useMemo(() => matched.map((c) => applyArrivals(c, arrivals)), [matched, arrivals])
   const highlightIds = useMemo(() => clubIdsForPulse(clubs, pulseIds), [clubs, pulseIds])
+
+  const dismissToast = useCallback((key) => setToasts((prev) => prev.filter((t) => t.key !== key)), [])
+  const openFromToast = useCallback(
+    (toast) => {
+      dismissToast(toast.key)
+      setSelectedId(toast.clubId)
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      cardFor(toast.clubId)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
+    },
+    [dismissToast],
+  )
+  const clubName = (id) => matched.find((c) => String(c.id) === String(id))?.name ?? ''
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data && { ...data, clubs }), [clubs, data])
 
   // The selected club's panel: it renders at once from the match; GET /clubs/:id (or the preview body) fills in the rest.
@@ -174,6 +211,12 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
           />
         </div>
       )}
+
+      <ArrivalToast
+        arrivals={toasts.map((t) => ({ ...t, clubName: clubName(t.clubId) }))}
+        onOpen={openFromToast}
+        onDismiss={dismissToast}
+      />
     </div>
   )
 }

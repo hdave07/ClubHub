@@ -17,20 +17,22 @@ const NO_PULSE = new Set()
  * - After that, a Dropbox event is an arrival when its id is new or its file/time changed (lib/events.js signature).
  * - Only arrivals for the student's result clubs are kept and highlighted.
  * - Pauses while the tab is hidden; backs off on errors (3s, 6s, ... up to 30s).
- * @param {{ clubIds: string[], enabled?: boolean }} opts
+ * @param {{ clubIds: string[], enabled?: boolean, onArrive?: (events: import('./events').LiveEvent[]) => void }} opts
  * @returns {{
  *   arrivals: import('./events').LiveEvent[],
  *   pulseIds: Set<string>,
- *   latest: { seq: number, events: import('./events').LiveEvent[] },
  *   inject: (raw: object) => void,
  * }}
- * `pulseIds` holds graph event node ids ("event:88") for arrivals from the last few seconds. `latest` changes once
+ * `pulseIds` holds graph event node ids ("event:88") for arrivals from the last few seconds. `onArrive` is called once
  * per batch of arrivals (for the toast). `inject` adds an event right away, e.g. from an in-app upload's response.
  */
-export function useLiveEvents({ clubIds, enabled = true }) {
+export function useLiveEvents({ clubIds, enabled = true, onArrive }) {
   const [arrivals, setArrivals] = useState([])
   const [pulseIds, setPulseIds] = useState(NO_PULSE)
-  const [latest, setLatest] = useState({ seq: 0, events: [] })
+  const arriveRef = useRef(onArrive)
+  useEffect(() => {
+    arriveRef.current = onArrive
+  }, [onArrive])
 
   const seen = useRef(null) // Map<event id, signature>; null until the baseline poll
   const clubs = useRef(new Set())
@@ -67,7 +69,7 @@ export function useLiveEvents({ clubIds, enabled = true }) {
       })
     }, PULSE_MS)
     timers.current.add(t)
-    setLatest((prev) => ({ seq: prev.seq + 1, events: mine }))
+    arriveRef.current?.(mine)
   }, [])
 
   const ingest = useCallback(
@@ -142,5 +144,5 @@ export function useLiveEvents({ clubIds, enabled = true }) {
     [announce],
   )
 
-  return { arrivals, pulseIds, latest, inject }
+  return { arrivals, pulseIds, inject }
 }
