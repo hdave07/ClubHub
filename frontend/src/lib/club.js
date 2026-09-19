@@ -4,7 +4,9 @@
 // - safety: only published events that have a title and a valid start
 // Other fields that come back (confidence, status, sop ids) are dropped here.
 
-const UPCOMING_LIMIT = 5
+import { timeOf, toUtcIso } from './format'
+
+export const UPCOMING_LIMIT = 5
 const CONTACT_KEY = /e-?mail|contact|phone|organi[sz]er|whatsapp/i
 
 /** @param {unknown} v */
@@ -22,7 +24,8 @@ export function isHttpUrl(v) {
 export const isLimitedSummary = (summary) =>
   summary == null || (typeof summary === 'string' && summary.trim().toLowerCase() === 'limited info')
 
-const validTime = (iso) => typeof iso === 'string' && !Number.isNaN(Date.parse(iso))
+// API datetimes are UTC even when the offset is missing (see toUtcIso in format.js).
+const validTime = (iso) => !Number.isNaN(timeOf(iso))
 
 const EMAIL_LIKE = /\S+@\S+/
 const PHONE_LIKE = /[+(]?\d[\d\s().-]{7,}\d/g
@@ -64,8 +67,8 @@ export function toEventLite(ev) {
   return {
     id: String(ev.id),
     title: scrubText(ev.title),
-    start: ev.start,
-    end: validTime(ev.end) ? ev.end : null,
+    start: toUtcIso(ev.start),
+    end: validTime(ev.end) ? toUtcIso(ev.end) : null,
     location: scrubText(ev.location) || undefined,
     rsvp_url: isHttpUrl(ev.rsvp_url) ? ev.rsvp_url : null,
     source: ev.source === 'dropbox' ? 'dropbox' : 'sop',
@@ -84,8 +87,8 @@ export function upcomingEvents(events, now = new Date()) {
   return (Array.isArray(events) ? events : [])
     .filter((ev) => ev && (ev.status == null || ev.status === 'published'))
     .filter((ev) => typeof ev.title === 'string' && ev.title.trim() && validTime(ev.start))
-    .filter((ev) => Date.parse(validTime(ev.end) ? ev.end : ev.start) >= t)
-    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+    .filter((ev) => timeOf(validTime(ev.end) ? ev.end : ev.start) >= t)
+    .sort((a, b) => timeOf(a.start) - timeOf(b.start))
     .slice(0, UPCOMING_LIMIT)
     .map(toEventLite)
     .filter((ev) => ev.title)
