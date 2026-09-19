@@ -4,7 +4,9 @@ A StudentOS for clubs: match students to clubs by what they actually want, show 
 personal Obsidian-style graph, and keep it fresh by turning club posters/PDFs dropped in
 Dropbox into live events via Claude.
 
-Full spec, architecture, data model, and the 24h timeline: see [`CLAUDE.md`](./CLAUDE.md).
+Original brainstorming doc: [`central-hub-for-clubs.md`](./central-hub-for-clubs.md).
+Condensed, code-facing spec (architecture, data model, 24h timeline): see
+[`CLAUDE.md`](./CLAUDE.md).
 
 ## Layout
 

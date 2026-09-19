@@ -4,9 +4,9 @@ Guidance for Claude Code (and future contributors) working in this repo.
 
 ## What this is
 
-**Campus Compass** — a hackathon (24h) "StudentOS for Clubs" project. Full original spec
-lives at `C:\Users\james\Downloads\central-hub-for-clubs.md`; this file is the
-condensed, code-facing version. Two things it does:
+**Campus Compass** — a hackathon (24h) "StudentOS for Clubs" project. Full original
+brainstorming spec lives at [`central-hub-for-clubs.md`](./central-hub-for-clubs.md);
+this file is the condensed, code-facing version. Two things it does:
 
 1. **Match**: student types a free-text blurb ("first-year CS, want internships and
    friends, not too intense") -> 5-8 ranked clubs with a "why this fits you" line,
