@@ -1,0 +1,322 @@
+"""One file in -> Event rows out. The pipeline both entrances converge on.
+
+A file can arrive two ways: a club drops a poster in the shared Dropbox folder,
+or a user uploads a flier in the app. Both call process_file(). Keeping that
+single is what stops the date-safety rule from existing in two places and
+drifting apart.
+
+    InboxFile
+      -> IngestLog check      (have we already done this file?)
+      -> download_file        (dropbox_store)
+      -> extract_file         (extraction -- Claude reads it)
+      -> get_or_create_club   (matcher -- never guesses)
+      -> get_shared_link      (dropbox_store -- provenance)
+      -> Event rows + IngestLog
+
+Synchronous, like the modules it calls. Async callers wrap it in
+asyncio.to_thread; running it on the event loop would stall every request for
+the several seconds extraction takes.
+"""
+
+import json
+import re
+from dataclasses import dataclass, field
+from datetime import datetime
+
+from rapidfuzz import fuzz
+from sqlmodel import Session, select
+
+from app.models import Event, IngestLog
+from app.services.dropbox_store import InboxFile, download_file, get_shared_link, mime_type_for
+from app.services.extraction import ExtractionError, extract_file
+from app.services.matcher import get_or_create_club
+
+
+@dataclass(frozen=True)
+class IngestedEvent:
+    """A written Event, as plain data."""
+
+    id: str
+    title: str
+    start: datetime | None  # naive UTC
+    location: str | None
+    status: str
+    dropbox_link: str | None
+
+
+@dataclass(frozen=True)
+class IngestResult:
+    """What happened to one file. The watcher and the upload endpoint both use this.
+
+    Deliberately plain data, not ORM objects. process_file() commits and closes
+    its session, which expires every attribute on the Club and Event instances it
+    wrote -- reading `club.name` afterwards raises DetachedInstanceError, because
+    SQLAlchemy tries to reload from a session that no longer exists. Snapshotting
+    the fields while the session is open removes that trap for every caller
+    instead of making each one remember it.
+    """
+
+    file: InboxFile
+    status: str  # processed | duplicate | unsupported | no_events | failed
+    events: list[IngestedEvent] = field(default_factory=list)
+    club_id: str | None = None
+    club_name: str | None = None
+    club_created: bool = False
+    confidence: float | None = None
+    uncertainties: list[str] = field(default_factory=list)
+    doc_type: str | None = None
+    error: str | None = None
+
+    @property
+    def published_count(self) -> int:
+        return sum(1 for e in self.events if e.status == "published")
+
+
+def already_ingested(session: Session, file: InboxFile) -> bool:
+    """Have we processed this exact file content before?
+
+    Keyed on (dropbox_file_id, content_hash) so an *edited* file reprocesses --
+    a club fixing a date on their poster should update the app -- while the same
+    bytes seen on every 5-second poll do not. Without this the watcher re-sends
+    every poster to Claude forever.
+
+    content_hash is nullable in Dropbox's API; rev is the fallback, since it also
+    changes on edit.
+    """
+    fingerprint = file.content_hash or file.rev
+    existing = session.exec(
+        select(IngestLog).where(
+            IngestLog.dropbox_file_id == file.id,
+            IngestLog.content_hash == fingerprint,
+        )
+    ).first()
+    return existing is not None
+
+
+def _find_existing_event(session: Session, club_id: str, title: str, start) -> Event | None:
+    """An event we already hold for this club at this title and time.
+
+    Guards the case where a club re-uploads a corrected poster: the file hash
+    changed so we reprocess it, but the event on it is the same event. Without
+    this the demo feed shows the same workshop twice.
+
+    Titles are compared fuzzily, not exactly, because the model does not
+    transcribe punctuation identically across runs -- the same poster produced
+    "Fall Hiking Trip - Rattlesnake Point" and "Fall Hiking Trip: Rattlesnake
+    Point" on two passes. Matching on club + exact start and then confirming the
+    title is close enough is the reliable combination: two genuinely different
+    events from one club starting the same minute is implausible, while a
+    similarity floor still stops a merge of unrelated titles.
+    """
+    if start is None:
+        # No time to key on -- fall back to an exact title match within the club.
+        return session.exec(
+            select(Event).where(
+                Event.club_id == club_id,
+                Event.title == title,
+                Event.start.is_(None),
+            )
+        ).first()
+
+    candidates = session.exec(
+        select(Event).where(Event.club_id == club_id, Event.start == start)
+    ).all()
+    for candidate in candidates:
+        if fuzz.token_set_ratio(_title_key(title), _title_key(candidate.title)) >= 85:
+            return candidate
+    return None
+
+
+def _title_key(title: str) -> str:
+    """Lowercase, punctuation-free form used only for comparing two titles."""
+    return " ".join(re.sub(r"[^\w\s]", " ", title.lower()).split())
+
+
+def _log(session: Session, file: InboxFile, status: str, payload: dict) -> None:
+    session.add(
+        IngestLog(
+            dropbox_file_id=file.id,
+            content_hash=file.content_hash or file.rev,
+            status=status,
+            result_json=json.dumps(payload, default=str),
+        )
+    )
+
+
+def process_file(session: Session, file: InboxFile, *, force: bool = False) -> IngestResult:
+    """Run one Dropbox file through the whole pipeline and write the rows.
+
+    `force` re-processes a file we've already seen -- useful when iterating on the
+    prompt, and for re-running the demo without editing the poster.
+
+    Commits on success. On a permanent failure it records an IngestLog row so the
+    file isn't retried on every poll; transient failures (network, rate limits)
+    are deliberately allowed to propagate *without* a log entry, so the next poll
+    picks them up again.
+    """
+    if not force and already_ingested(session, file):
+        return IngestResult(file=file, status="duplicate")
+
+    mime_type = mime_type_for(file.name)
+    if mime_type is None:
+        _log(session, file, "unsupported", {"name": file.name})
+        session.commit()
+        return IngestResult(file=file, status="unsupported")
+
+    try:
+        extraction = extract_file(download_file(file.path), mime_type)
+    except ExtractionError as e:
+        # Deterministic failure (refusal, truncation, no tool call): retrying the
+        # same bytes gets the same answer, so log it and stop.
+        _log(session, file, "failed", {"name": file.name, "error": str(e)})
+        session.commit()
+        return IngestResult(file=file, status="failed", error=str(e))
+
+    if not extraction.events:
+        # A roster, a logo, a photo of a whiteboard. Don't create a placeholder
+        # club for a document with nothing to attribute to it.
+        _log(
+            session,
+            file,
+            "no_events",
+            {"name": file.name, "doc_type": extraction.doc_type},
+        )
+        session.commit()
+        return IngestResult(
+            file=file,
+            status="no_events",
+            doc_type=extraction.doc_type,
+            confidence=extraction.confidence,
+            uncertainties=extraction.uncertainties,
+        )
+
+    club, club_created = get_or_create_club(session, extraction.club_name_guess or file.name)
+
+    # Provenance: the link behind the "from Dropbox" badge. An extracted event is
+    # only as trustworthy as the ability to click through to the source, so a
+    # failure here shouldn't lose the event -- fall back to no link.
+    try:
+        dropbox_link = get_shared_link(file.path)
+    except Exception:
+        dropbox_link = None
+
+    written: list[Event] = []
+    for item in extraction.events:
+        existing = _find_existing_event(session, club.id, item.title, item.start)
+        event = existing or Event(club_id=club.id, title=item.title)
+
+        event.start = item.start
+        event.end = item.end
+        event.location = item.location
+        event.description = item.description
+        event.rsvp_url = item.rsvp_url
+        event.source = "dropbox"
+        event.source_file = file.name
+        event.dropbox_link = dropbox_link
+        event.status = item.status
+        event.confidence = extraction.confidence
+
+        session.add(event)
+        session.flush()  # assign the id before we snapshot it
+        written.append(event)
+
+    _log(
+        session,
+        file,
+        "processed",
+        {
+            "name": file.name,
+            "club": club.name,
+            "club_created": club_created,
+            "events": [e.title for e in written],
+            "confidence": extraction.confidence,
+            "uncertainties": extraction.uncertainties,
+        },
+    )
+
+    # Snapshot before commit expires the instances.
+    snapshot = IngestResult(
+        file=file,
+        status="processed",
+        events=[
+            IngestedEvent(
+                id=e.id,
+                title=e.title,
+                start=e.start,
+                location=e.location,
+                status=e.status,
+                dropbox_link=e.dropbox_link,
+            )
+            for e in written
+        ],
+        club_id=club.id,
+        club_name=club.name,
+        club_created=club_created,
+        confidence=extraction.confidence,
+        uncertainties=extraction.uncertainties,
+        doc_type=extraction.doc_type,
+    )
+    session.commit()
+    return snapshot
+
+
+def process_inbox(session: Session, *, force: bool = False) -> list[IngestResult]:
+    """Run every supported file currently in the Dropbox inbox."""
+    from app.services.dropbox_store import list_inbox
+
+    return [process_file(session, f, force=force) for f in list_inbox()]
+
+
+def _smoke_test() -> None:
+    """Run the real posters end to end and print what landed in the database.
+
+    WRITES TO THE DATABASE and makes one Claude API call per file. Re-running is
+    safe: the IngestLog check skips files already processed, and re-processing
+    with force=True updates existing events rather than duplicating them.
+    """
+    import sys
+
+    from app.database import engine, init_db
+    from app.models import Club
+
+    force = "--force" in sys.argv
+    init_db()
+
+    with Session(engine) as session:
+        results = process_inbox(session, force=force)
+
+        if not results:
+            print("No supported files in the Dropbox inbox.")
+            return
+
+        for r in results:
+            print("=" * 70)
+            print(f"{r.file.name}  ->  {r.status}")
+            if r.status == "duplicate":
+                print("   already ingested (re-run with --force to redo)")
+                continue
+            if r.error:
+                print(f"   {r.error}")
+                continue
+            if r.club_name:
+                tag = "CREATED placeholder" if r.club_created else "matched existing"
+                print(f"   club: {r.club_name}  [{tag}]")
+            if r.confidence is not None:
+                print(f"   confidence: {r.confidence}  doc_type={r.doc_type}")
+            for e in r.events:
+                print(f"   event: {e.title}")
+                print(f"          start={e.start} (UTC)  status={e.status}")
+                print(f"          link={(e.dropbox_link or '(none)')[:60]}")
+            for u in r.uncertainties:
+                print(f"   uncertainty: {u}")
+            print()
+
+        clubs = session.exec(select(Club)).all()
+        events = session.exec(select(Event)).all()
+        print("=" * 70)
+        print(f"DB now holds {len(clubs)} clubs, {len(events)} events "
+              f"({sum(1 for e in events if e.status == 'published')} published)")
+
+
+if __name__ == "__main__":
+    _smoke_test()
