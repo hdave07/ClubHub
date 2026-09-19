@@ -1,19 +1,30 @@
 import { normalizeOutcome } from '@/types'
 
 // Night-sky tokens. Everything color-related in the app comes from here or from the CSS variables in index.css.
+// surface, surfaceRaised and textMuted are derived from bg/heading/body (not part of the given palette).
 export const sky = {
-  bg: '#0B1026',
-  surface: '#121A3A',
-  surfaceRaised: '#1A2350',
-  border: 'rgba(232, 236, 248, 0.10)',
-  text: '#E8ECF8',
-  textMuted: '#9AA3C0',
+  bg: '#191816',
+  surface: '#242320',
+  surfaceRaised: '#2D2B29',
+  border: 'rgba(244, 239, 229, 0.10)',
+  heading: '#F4EFE5',
+  body: '#BDB6AA',
+  textMuted: '#9F9A8F',
+  stars: '#F4EFE5',
 }
 
 // Accent: only for "new / from Dropbox".
 export const gold = {
-  color: '#FCD34D',
-  glow: 'rgba(252, 211, 77, 0.35)',
+  color: '#E5C07B',
+  glow: 'rgba(229, 192, 123, 0.35)',
+}
+
+// Palette star colors. Not applied anywhere yet.
+export const pinkStar = '#D79BA7'
+
+export const button = {
+  bg: '#F4EFE5',
+  text: '#191816',
 }
 
 /** @type {Record<import('@/types').Outcome, string>} */

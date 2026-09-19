@@ -71,7 +71,7 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
         'transition-[background-color,border-color,box-shadow]',
         'focus-visible:ring-2 focus-visible:ring-ring',
         selected
-          ? 'border-transparent bg-secondary ring-[1.5px] ring-foreground/80'
+          ? 'border-transparent bg-secondary ring-[1.5px] ring-heading/80'
           : hovered
             ? 'border-foreground/25 bg-secondary'
             : 'border-border bg-card hover:border-foreground/25 hover:bg-secondary',

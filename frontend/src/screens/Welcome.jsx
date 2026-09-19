@@ -22,7 +22,7 @@ export default function Welcome({ onExplore, onSkip }) {
               top: `${y}%`,
               width: i % 3 === 0 ? 3 : 2,
               height: i % 3 === 0 ? 3 : 2,
-              background: sky.text,
+              background: sky.stars,
               animationDelay: `${(i % 5) * 0.25}s`,
             }}
           />

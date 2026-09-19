@@ -10,7 +10,7 @@ const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.locat
 const panelStars = [
   [12, 18], [27, 72], [41, 33], [58, 14], [66, 58], [79, 27], [88, 80], [8, 55], [35, 88], [92, 9], [52, 66],
 ]
-  .map(([x, y]) => `radial-gradient(1.5px 1.5px at ${x}% ${y}%, ${sky.text} 50%, transparent 51%)`)
+  .map(([x, y]) => `radial-gradient(1.5px 1.5px at ${x}% ${y}%, ${sky.stars} 50%, transparent 51%)`)
   .join(', ')
 
 // TODO Sprint 5: replace the placeholder text with StarGraph (React Flow, selectedId/hoveredId synced with ClubList).
@@ -76,8 +76,8 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
           {[0, 1, 2, 3, 4].map((i) => (
             <span
               key={i}
-              className="twinkle size-1.5 rounded-full bg-foreground"
-              style={{ animationDelay: `${i * 0.2}s` }}
+              className="twinkle size-1.5 rounded-full"
+              style={{ background: sky.stars, animationDelay: `${i * 0.2}s` }}
             />
           ))}
         </div>

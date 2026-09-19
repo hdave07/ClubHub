@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { OUTCOME_LABELS, normalizeOutcome } from '@/types'
-import { gold, outcomeColor, outcomeColors, sky } from '@/lib/theme'
+import { button, gold, outcomeColor, outcomeColors, pinkStar, sky } from '@/lib/theme'
 import ClubCard, { ClubCardSkeleton } from '@/components/ClubCard'
 import { previewClubs } from './previewClubs'
 
@@ -78,6 +78,8 @@ export default function Preview() {
           ))}
           <Swatch name="gold" color={gold.color} />
           <Swatch name="gold glow" color={gold.glow} />
+          <Swatch name="pink star" color={pinkStar} />
+          <Swatch name="button" color={button.bg} />
         </div>
       </Section>
 
