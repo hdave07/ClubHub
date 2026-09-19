@@ -45,6 +45,9 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             Edit
           </Button>
         </div>
+        {import.meta.env.DEV && (
+          <p className="text-xs text-muted-foreground">Dev: is the backend running on :8000?</p>
+        )}
       </div>
     )
   }
@@ -66,7 +69,12 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
       )}
 
       {clubs.length === 0 ? (
-        <p className="mt-8 text-muted-foreground">No matches yet.</p>
+        <div className="mt-8 flex flex-col items-start gap-4">
+          <p className="text-muted-foreground">
+            No stars matched yet. Try describing what you want a little differently.
+          </p>
+          <Button onClick={onEdit}>Edit</Button>
+        </div>
       ) : (
         <ul className="mt-8 flex flex-col gap-4">
           {clubs.map((club) => (
