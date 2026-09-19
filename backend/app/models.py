@@ -23,6 +23,10 @@ class Club(SQLModel, table=True):
     summary: Optional[str] = None  # AI-written; "limited info" if thin
 
     outcomes: list[str] = Field(default_factory=list, sa_column=Column(JSON))  # 1-3 from fixed list
+    # True when outcomes came from derive_outcomes_from_tags() rather than from Claude,
+    # i.e. the listing was too thin for the model to assign any. Kept separate so the
+    # reranker and the graph can tell a derived edge from an asserted one.
+    outcomes_derived: bool = False
     tags: list[str] = Field(default_factory=list, sa_column=Column(JSON))  # 5-8 lowercase
     commitment: Optional[str] = None  # casual | moderate | intense | unknown
 
@@ -147,3 +151,69 @@ FIXED_TAGS = [
     "outdoors",
     "food",
 ]
+
+# Which tags point at which outcome. Used ONLY as a fallback: when enrichment returns an
+# empty outcomes array (the prompt tells it to, for listings too thin to support one),
+# the club would otherwise have no edge in the personal graph -- which is built as
+# you -> outcomes -> clubs -- and so could never be rendered at all.
+#
+# Deriving from tags rather than from sop_interest_areas covers every club: 14 rows came
+# back with no outcomes, and while 12 had SOP areas, all 14 had tags (minimum tag count
+# across the catalog is 1). Tags are already grounded in the source text, so this stays
+# inside the "never invent detail" rule.
+#
+# A tag may point at several outcomes; scoring picks the strongest. Keep every entry of
+# FIXED_TAGS represented here -- unmapped_tags() reports any that are missing.
+OUTCOME_TAGS: dict[str, tuple[str, ...]] = {
+    "Make friends": (
+        "social events", "games", "food", "sports", "fitness", "outdoors",
+        "international students",
+    ),
+    "Build skills/portfolio": (
+        "workshops", "training and lessons", "hackathons", "competitions",
+        "performance", "design", "creative writing", "publishing", "visual arts",
+        "music", "dance", "theatre", "film and media",
+    ),
+    "Career and networking": (
+        "networking", "conferences", "business", "finance", "entrepreneurship",
+        "consulting", "law", "mentorship",
+    ),
+    "Leadership": ("student government", "mentorship"),
+    "Give back": (
+        "volunteering", "community outreach", "fundraising", "advocacy",
+        "human rights", "equity and inclusion", "sustainability", "politics",
+    ),
+    "Culture and identity": (
+        "cultural heritage", "faith and spirituality", "languages",
+        "international students",
+    ),
+    "Wellness and recreation": (
+        "sports", "fitness", "outdoors", "mental health", "games",
+    ),
+    "Academic/research": (
+        "research", "science", "engineering", "technology", "artificial intelligence",
+        "humanities", "social sciences", "education", "health and medicine",
+        "graduate students", "conferences",
+    ),
+}
+
+
+def unmapped_tags() -> set[str]:
+    """FIXED_TAGS entries no outcome claims -- a club tagged only with these would
+    still derive nothing. Should stay empty; check it after editing either list."""
+    claimed = {tag for tags in OUTCOME_TAGS.values() for tag in tags}
+    return set(FIXED_TAGS) - claimed
+
+
+def derive_outcomes_from_tags(tags: list[str], *, limit: int = 3) -> list[str]:
+    """Best-effort outcomes for a club whose listing was too thin for Claude to assign
+    any. Scores each outcome by how many of the club's tags point at it; ties break on
+    FIXED_OUTCOMES order so the result is deterministic across runs."""
+    if not tags:
+        return []
+    tag_set = {t.lower() for t in tags}
+    scored = [
+        (sum(1 for tag in outcome_tags if tag in tag_set), -FIXED_OUTCOMES.index(outcome), outcome)
+        for outcome, outcome_tags in OUTCOME_TAGS.items()
+    ]
+    return [outcome for score, _, outcome in sorted(scored, reverse=True) if score > 0][:limit]

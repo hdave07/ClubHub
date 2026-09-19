@@ -23,6 +23,17 @@ FROM club ORDER BY desc_len ASC LIMIT 10;
 --    be 1-3 items once enriched -- catches a bad/hallucinated enrichment response
 SELECT name, outcomes FROM club WHERE summary IS NOT NULL;
 
+-- 5b. GRAPH REACHABILITY: a club with zero outcomes has no edge in the
+--     you -> outcomes -> clubs graph and can never be rendered. Should return 0 rows.
+--     Fix with: python -m app.services.enrichment_batch --derive-outcomes
+SELECT name, tags FROM club
+WHERE summary IS NOT NULL AND json_array_length(outcomes) = 0;
+
+-- 5c. How many clubs are leaning on the tag-derived fallback rather than outcomes
+--     Claude actually assigned? A rising number means listings are getting thinner.
+SELECT outcomes_derived, COUNT(*) AS n FROM club
+WHERE summary IS NOT NULL GROUP BY outcomes_derived;
+
 -- 6. Tags come from the controlled vocabulary FIXED_TAGS (models.py): 3-8 per club,
 --    lowercase. Thin listings legitimately land at 3-4; fewer than 3 means the source
 --    text was too sparse to classify, not that enrichment failed.

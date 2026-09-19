@@ -90,6 +90,7 @@ python -m app.services.enrichment_batch --concurrency 6  # parallel Claude calls
 python -m app.services.enrichment_batch --index-only     # re-embed only, no Claude calls
 python -m app.services.enrichment_batch --force          # re-enrich first N clubs by name
 python -m app.services.enrichment_batch --stale-tags     # re-enrich rows on an old FIXED_TAGS
+python -m app.services.enrichment_batch --derive-outcomes # backfill empty outcomes from tags
 ```
 
 Each service has a `_smoke_test()` on `__main__`. **They hit real APIs and write to the
@@ -146,6 +147,11 @@ flowchart TB
   labels, that's what keeps the personal graph small and legible. `tags` are 3-8 values
   from `FIXED_TAGS` (~50 terms, same file) — see the tag-vocabulary constraint below.
 - `Event` — `status` is `published` or `pending_review`; see the safety rule below.
+- **Adding a column? Add it to `_COLUMN_MIGRATIONS` in `database.py` too.**
+  `SQLModel.metadata.create_all()` creates missing tables but never alters an existing
+  one, and `backend/data/campus_compass.db` is checked into git — so a teammate who
+  pulls a model change gets the old table and `no such column` on the next query.
+  `init_db()` applies those idempotent `ALTER TABLE`s at startup.
 - `IngestLog` — keyed on `(dropbox_file_id, content_hash)` so the watcher never
   reprocesses the same file twice.
 
@@ -186,6 +192,13 @@ flowchart TB
   would strip out exactly the terms students search by.
 - **The personal graph is always small** (~15-25 nodes: you, ~3 outcomes, 5-8 clubs,
   next events). Never render the full club graph (hairball of ~1,250 nodes).
+- **Every club must carry at least one outcome**, or it has no edge in the
+  you -> outcomes -> clubs graph and can never be drawn. Thin listings legitimately come
+  back from Claude with none (14 of 250 did), so `_normalise_payload` falls back to
+  `derive_outcomes_from_tags()` (`models.py`) and sets `Club.outcomes_derived`. The
+  fallback never overrides outcomes the model actually assigned. Deriving from tags
+  rather than `sop_interest_areas` is deliberate: 2 of those 14 had no SOP areas at all,
+  but every club in the catalog has at least one tag.
 - **SOP etiquette**: `sop_sync.py` runs as a one-off script with a real User-Agent and
   throttling — never call SOP's API from a per-request code path.
 - **Filter campus by taxonomy *slug*, not `settings.sop_campus`.** `class_list` carries

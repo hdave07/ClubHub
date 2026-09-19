@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.database import engine, init_db
-from app.models import FIXED_TAGS, Club
+from app.models import FIXED_TAGS, Club, derive_outcomes_from_tags
 from app.services.embeddings import get_client as get_voyage_client
 from app.services.embeddings import upsert_club_records
 from app.services.enrichment import EnrichmentError, enrich_club
@@ -115,6 +115,7 @@ def run(
 
                 club.summary = result["summary"]
                 club.outcomes = result["outcomes"]
+                club.outcomes_derived = result["outcomes_derived"]
                 club.tags = result["tags"]
                 club.commitment = result["commitment"]
                 session.add(club)
@@ -154,6 +155,45 @@ def index_existing(limit: int = 100) -> BatchResult:
     return BatchResult(selected=len(clubs), enriched=0, failed=0, indexed=len(clubs))
 
 
+def derive_missing_outcomes(limit: int = 1000) -> BatchResult:
+    """Backfill outcomes for enriched clubs that have none, from their tags.
+
+    No Claude calls -- this only re-reads tags already on the row. Re-indexes the rows
+    it touches, since outcomes are part of the embedding document.
+    """
+    init_db()
+    with Session(engine) as session:
+        clubs = [
+            club
+            for club in session.exec(
+                select(Club).where(Club.summary.is_not(None)).order_by(Club.name).limit(limit)
+            )
+            if not club.outcomes
+        ]
+
+        updated: list[Club] = []
+        for club in clubs:
+            derived = derive_outcomes_from_tags(club.tags or [])
+            if not derived:
+                print(f"[outcomes] no tags to derive from: {club.name}")
+                continue
+            club.outcomes = derived
+            club.outcomes_derived = True
+            session.add(club)
+            updated.append(club)
+            print(f"[outcomes] {club.name} -> {derived}")
+        session.commit()
+
+        if updated:
+            upsert_club_records(updated, client=get_voyage_client())
+            print(f"[embeddings] reindexed {len(updated)} club vector(s)")
+
+    return BatchResult(
+        selected=len(clubs), enriched=len(updated), failed=len(clubs) - len(updated),
+        indexed=len(updated),
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Enrich and index Campus Compass clubs")
     parser.add_argument("--limit", type=int, default=100, help="Maximum clubs to process (default: 100)")
@@ -163,12 +203,16 @@ def main() -> None:
                         help=f"Parallel Claude calls (default: {DEFAULT_CONCURRENCY})")
     parser.add_argument("--stale-tags", action="store_true",
                         help="Re-enrich only clubs whose tags predate the current FIXED_TAGS")
+    parser.add_argument("--derive-outcomes", action="store_true",
+                        help="Backfill empty outcomes from tags (no Claude calls)")
     args = parser.parse_args()
 
     if args.force and args.index_only:
         parser.error("--force and --index-only cannot be used together")
 
-    if args.index_only:
+    if args.derive_outcomes:
+        result = derive_missing_outcomes()
+    elif args.index_only:
         result = index_existing(args.limit)
     elif args.stale_tags:
         init_db()
