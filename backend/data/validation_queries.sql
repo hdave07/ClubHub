@@ -23,9 +23,40 @@ FROM club ORDER BY desc_len ASC LIMIT 10;
 --    be 1-3 items once enriched -- catches a bad/hallucinated enrichment response
 SELECT name, outcomes FROM club WHERE summary IS NOT NULL;
 
--- 6. Tags should be 5-8 lowercase strings once enriched (per enrichment prompt spec)
+-- 6. Tags come from the controlled vocabulary FIXED_TAGS (models.py): 3-8 per club,
+--    lowercase. Thin listings legitimately land at 3-4; fewer than 3 means the source
+--    text was too sparse to classify, not that enrichment failed.
 SELECT name, tags, json_array_length(tags) AS tag_count
-FROM club WHERE summary IS NOT NULL;
+FROM club WHERE summary IS NOT NULL ORDER BY tag_count;
+
+-- 6b. Tag vocabulary health -- how often is each tag actually reused? Free-form tags
+--     drifted to ~1 use each (148 unique across 177 assignments) before FIXED_TAGS.
+--     A long tail of single-use tags means the vocabulary has drifted again.
+SELECT j.value AS tag, COUNT(*) AS clubs
+FROM club, json_each(club.tags) AS j
+WHERE club.summary IS NOT NULL
+GROUP BY j.value ORDER BY clubs DESC;
+
+-- 6c. Rows stranded on an OLD vocabulary after editing FIXED_TAGS. Fix with:
+--     python -m app.services.enrichment_batch --stale-tags
+--     (--force won't do it: that re-runs the first N clubs by name, so rows late in
+--     the alphabet stay stale while the early ones look correct.)
+SELECT name, tags FROM club
+WHERE summary IS NOT NULL AND EXISTS (
+  SELECT 1 FROM json_each(club.tags) AS j
+  WHERE j.value NOT IN (
+    -- keep in sync with models.FIXED_TAGS
+    'artificial intelligence','technology','engineering','science','health and medicine',
+    'mental health','business','finance','entrepreneurship','consulting','law','politics',
+    'humanities','social sciences','languages','education','music','dance','theatre',
+    'visual arts','creative writing','film and media','design','workshops','competitions',
+    'conferences','research','mentorship','volunteering','networking','social events',
+    'performance','training and lessons','hackathons','publishing','fundraising',
+    'cultural heritage','faith and spirituality','international students','graduate students',
+    'advocacy','human rights','equity and inclusion','community outreach','sustainability',
+    'student government','sports','fitness','games','outdoors','food'
+  )
+);
 
 -- 7. Expired listings that should have been filtered by sop_sync -- should return 0 rows
 SELECT name, listing_expires FROM club WHERE listing_expires < datetime('now');
