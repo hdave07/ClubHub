@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { orb, sky } from '@/lib/theme'
+import { sky } from '@/lib/theme'
 
 // [left %, top %] of the CSS-only stars
 const STARS = [
@@ -28,17 +28,6 @@ export default function Welcome({ onExplore, onSkip }) {
           />
         ))}
       </div>
-
-      <div
-        aria-hidden
-        className="twinkle relative mb-8 rounded-full"
-        style={{
-          width: orb.size,
-          height: orb.size,
-          background: orb.background,
-          boxShadow: orb.boxShadow,
-        }}
-      />
 
       <p className="relative text-xs tracking-[0.3em] text-muted-foreground">WELCOME TO</p>
       <h1 className="relative mt-3 text-5xl md:text-6xl">Your U of T Universe</h1>

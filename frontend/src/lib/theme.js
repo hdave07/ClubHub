@@ -25,13 +25,6 @@ export const button = {
   text: '#181817',
 }
 
-// Welcome screen orb (the results graph has its own quieter "you" node).
-export const orb = {
-  size: 56,
-  background: sky.heading,
-  boxShadow: `0 0 40px 10px ${sky.heading}40`,
-}
-
 // React Flow node sizes in px. The layout centers nodes using these.
 export const nodeStyles = {
   you: { size: 28 },
