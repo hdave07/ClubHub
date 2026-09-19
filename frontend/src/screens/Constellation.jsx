@@ -3,6 +3,7 @@ import ClubList from '@/components/ClubList'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
+import { sky } from '@/lib/theme'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
