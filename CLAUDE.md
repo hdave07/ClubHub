@@ -32,8 +32,11 @@ docstring TODOs describing exactly what to implement — see "Build order" below
 ## Commands
 
 ```bash
-# backend
-cd backend && .venv/Scripts/activate && uvicorn app.main:app --reload --port 8000
+# backend (macOS/Linux; .venv\Scripts\activate on Windows)
+cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
+
+# verify Dropbox auth + all four OAuth scopes (writes/deletes one temp file in /Inbox)
+cd backend && python -m app.services.dropbox_store
 
 # frontend (proxies /api -> localhost:8000, see frontend/vite.config.js)
 cd frontend && npm run dev
