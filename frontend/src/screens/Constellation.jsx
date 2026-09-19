@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import ClubList from '@/components/ClubList'
+import ClubPanel from '@/components/ClubPanel'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
 import { clubIdsForPulse } from '@/lib/buildGraph'
+import { sanitizeClub } from '@/lib/club'
 import { sky } from '@/lib/theme'
+import { useClub } from '@/lib/useClub'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
 const NO_PULSE = new Set()
+const noop = () => {}
 
-function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds }) {
+function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds, club, rank, panel, onClose }) {
   return (
     <div className="relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0">
       {loading ? (
@@ -24,6 +28,19 @@ function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHove
           onSelect={onSelect}
           onHover={onHover}
           pulseIds={pulseIds}
+          panelOpen={!!club}
+        />
+      )}
+      {!loading && club && (
+        <ClubPanel
+          club={club}
+          rank={rank}
+          detail={panel.detail}
+          loading={panel.loading}
+          error={panel.error}
+          notFound={panel.notFound}
+          onRetry={panel.retry ?? noop}
+          onClose={onClose}
         />
       )}
     </div>
@@ -35,9 +52,14 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const [selectedId, setSelectedId] = useState(null)
   const [hoveredId, setHoveredId] = useState(null)
   const [previewClubs, setPreviewClubs] = useState(null)
+  const [previewDetails, setPreviewDetails] = useState(null)
 
   useEffect(() => {
-    if (USE_PREVIEW_DATA) import('@/dev/previewClubs').then((m) => setPreviewClubs(m.previewClubs))
+    if (!USE_PREVIEW_DATA) return
+    import('@/dev/previewClubs').then((m) => {
+      setPreviewClubs(m.previewClubs)
+      setPreviewDetails(m.previewClubDetails)
+    })
   }, [])
 
   const isLoading = USE_PREVIEW_DATA ? previewClubs === null : loading
@@ -45,6 +67,17 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const clubs = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
   const highlightIds = useMemo(() => clubIdsForPulse(clubs, pulseIds), [clubs, pulseIds])
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data), [clubs, data])
+
+  // The selected club's panel: it renders at once from the match; GET /clubs/:id (or the preview body) fills in the rest.
+  const selectedIndex = clubs.findIndex((c) => String(c.id) === String(selectedId))
+  const selectedClub = selectedIndex >= 0 ? clubs[selectedIndex] : null
+  const live = useClub(selectedClub ? String(selectedClub.id) : null, { enabled: !USE_PREVIEW_DATA })
+  const previewRaw = USE_PREVIEW_DATA && selectedClub ? previewDetails?.[selectedClub.id] : undefined
+  const previewDetail = useMemo(() => (previewRaw ? sanitizeClub(previewRaw) : null), [previewRaw])
+  const panel = USE_PREVIEW_DATA
+    ? { detail: previewDetail, loading: previewDetails === null, error: null, notFound: previewDetails !== null && !previewRaw }
+    : live
+  const closePanel = useCallback(() => setSelectedId(null), [])
 
   if (err) {
     return (
@@ -123,6 +156,10 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             onSelect={setSelectedId}
             onHover={setHoveredId}
             pulseIds={pulseIds}
+            club={selectedClub}
+            rank={selectedIndex + 1}
+            panel={panel}
+            onClose={closePanel}
           />
         </div>
       )}
