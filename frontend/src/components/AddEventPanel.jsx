@@ -198,8 +198,8 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
               'flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-9 text-center outline-none',
               'transition-colors focus-visible:ring-2 focus-visible:ring-ring',
               dragging
-                ? 'border-dropbox bg-dropbox/15'
-                : 'border-dropbox/45 bg-dropbox/[0.07] hover:border-dropbox/80 hover:bg-dropbox/[0.12]',
+                ? 'border-foreground bg-dropbox/15'
+                : 'border-border bg-dropbox/[0.07] hover:border-muted-foreground hover:bg-dropbox/[0.12]',
             )}
             style={{ transitionDuration: `${motion.base}ms` }}
           >
