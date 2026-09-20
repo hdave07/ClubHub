@@ -7,8 +7,7 @@ export default function Welcome({ onExplore }) {
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 text-center">
       <StaticStars />
 
-      <p className="relative text-xs tracking-[0.3em] text-muted-foreground">WELCOME TO</p>
-      <h1 className="relative mt-3 text-5xl md:text-6xl">ClubHub</h1>
+      <h1 className="relative text-5xl md:text-6xl">Your U of T Universe</h1>
       <Badge variant="outline" className="relative mt-6 h-8 px-4 text-sm">
         University of Toronto · St. George
       </Badge>
