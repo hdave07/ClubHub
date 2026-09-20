@@ -137,7 +137,7 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
           ? 'border-foreground bg-secondary'
           : hovered
             ? 'border-muted-foreground bg-secondary'
-            : 'border-transparent bg-card hover:border-muted-foreground hover:bg-secondary',
+            : 'border-card-edge bg-card hover:border-muted-foreground hover:bg-secondary',
       )}
     >
       {highlighted && (
@@ -170,7 +170,7 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
 
 export function ClubCardSkeleton() {
   return (
-    <div aria-hidden className="flex gap-3 rounded-lg bg-card px-4 py-3.5">
+    <div aria-hidden className="flex gap-3 rounded-lg border border-card-edge bg-card px-4 py-3.5">
       <Skeleton className="mt-0.5 h-3 w-5" />
       <div className="flex flex-1 flex-col gap-2.5">
         <div className="flex justify-between gap-3">

@@ -186,7 +186,7 @@ export function ClubNode({ data }) {
   )
 }
 
-// The quietest layer: a tiny neutral dot, labelled only on hover or focus.
+// The quietest layer: a tiny neutral diamond, labelled only on hover or focus.
 export function EventNode({ data }) {
   const [active, setActive] = useState(false)
   const { size } = nodeStyles.event
@@ -222,7 +222,9 @@ export function EventNode({ data }) {
         style={{
           width: size,
           height: size,
-          borderRadius: '50%',
+          // an event is a small diamond (a square turned 45 degrees), not a dot like the clubs
+          borderRadius: 1,
+          transform: 'rotate(45deg)',
           background: lit ? sky.heading : sky.textMuted,
           opacity: lit ? 0.95 : 0.5,
           transition: `background-color ${motion.base}ms, opacity ${motion.base}ms`,
@@ -262,11 +264,12 @@ function Arrival() {
           position: 'absolute',
           left: '50%',
           top: '50%',
-          width: 9,
-          height: 9,
-          marginLeft: -4.5,
-          marginTop: -4.5,
-          borderRadius: '50%',
+          width: 7,
+          height: 7,
+          marginLeft: -3.5,
+          marginTop: -3.5,
+          borderRadius: 1,
+          transform: 'rotate(45deg)', // the arriving event is a diamond too
           background: accent.color,
         }}
       />

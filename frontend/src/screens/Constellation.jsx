@@ -64,7 +64,7 @@ function GraphPanel({
   return (
     <div
       className={cn(
-        'relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0',
+        'relative min-h-96 flex-1 overflow-hidden rounded-xl border border-border bg-card lg:min-h-0', // the frame is a step lighter than the card outlines
         reserveMascot && 'lg:mb-[4.25rem]', // a strip under the graph for the fixed mascot
       )}
     >
@@ -283,7 +283,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
                       for the keyboard focus ring and while an upload is running, and holds still under reduced motion. */}
                   <span
                     aria-hidden
-                    className="poster-flicker pointer-events-none absolute -inset-1 rounded-full border-[1.5px] border-primary peer-focus-visible:hidden peer-disabled:hidden"
+                    className="poster-flicker pointer-events-none absolute -inset-1 rounded-full border border-primary peer-focus-visible:hidden peer-disabled:hidden"
                   />
                 </span>
                 <PosterInfo />

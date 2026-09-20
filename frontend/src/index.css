@@ -36,6 +36,7 @@
   --starlight: #9DB4E0;
   --starlight-muted: #2C3038;
   --dropbox: #4A7BD0;
+  --card-edge: #2D2C29; /* club card outline: just lighter than the card (#201F1D), so it doesn't melt into the page */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -56,6 +57,7 @@ body {
   --color-starlight: var(--starlight);
   --color-starlight-muted: var(--starlight-muted);
   --color-dropbox: var(--dropbox);
+  --color-card-edge: var(--card-edge);
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Fraunces Variable", ui-serif, Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
