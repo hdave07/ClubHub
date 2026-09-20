@@ -6,6 +6,7 @@ import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
 import DropboxGlyph from '@/components/DropboxGlyph'
 import Mascot from '@/components/Mascot'
+import PosterInfo from '@/components/PosterInfo'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
@@ -258,16 +259,16 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
             {!isLoading && !empty && <CardGuide />}
           </div>
           {!isLoading && !empty && (
-            <div className="flex flex-col items-end gap-1.5">
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  aria-label="Remap your constellation"
-                  onClick={onEdit}
-                  className="rounded-sm text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  Remap
-                </button>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                aria-label="Remap your constellation"
+                onClick={onEdit}
+                className="rounded-sm text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Remap
+              </button>
+              <div className="flex items-center gap-2">
                 <span className="relative inline-flex">
                   <button
                     type="button"
@@ -285,8 +286,8 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
                     className="poster-flicker pointer-events-none absolute -inset-1 rounded-full border-[1.5px] border-primary peer-focus-visible:hidden peer-disabled:hidden"
                   />
                 </span>
+                <PosterInfo />
               </div>
-              <p className="text-[11px] text-muted-foreground max-sm:hidden">Posters and PDFs become events · saved to Dropbox</p>
             </div>
           )}
           <AddEventPanel state={flier.state} onClose={flier.reset} onAgain={openPicker} />
