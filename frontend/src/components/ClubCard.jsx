@@ -1,5 +1,6 @@
 import { CalendarDays, CalendarX2, Info } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
+import OutcomePill from '@/components/OutcomePill'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatEventTime } from '@/lib/format'
 import { outcomeLabel } from '@/lib/labels'
@@ -43,7 +44,7 @@ function Commitment({ value }) {
   )
 }
 
-/** Outline pills, one neutral color (no per-outcome colors). At most 2, then "+N". */
+/** Outcome pills in each outcome's color (the same colors as the graph). At most 2, then "+N" in neutral gray. */
 function Offers({ keys, limited }) {
   if (!keys.length && !limited) return null
   const shown = keys.slice(0, MAX_PILLS)
@@ -51,9 +52,7 @@ function Offers({ keys, limited }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {shown.map((k) => (
-        <span key={k} className="rounded-full border border-border px-2 py-0.5 text-xs leading-4 text-muted-foreground">
-          {outcomeLabel(k, { short: true })}
-        </span>
+        <OutcomePill key={k} outcomeKey={k} short />
       ))}
       {extra > 0 && (
         <span

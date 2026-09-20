@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { ArrowUpRight, Info, Mail, X } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
+import OutcomePill from '@/components/OutcomePill'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isLimitedSummary, scrubText, toEventLite } from '@/lib/club'
 import { formatEventTime } from '@/lib/format'
-import { outcomeLabel } from '@/lib/labels'
 import { motion } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { normalizeOutcome } from '@/types'
@@ -92,10 +92,7 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
 
   const keys = [...new Set((club.outcomes ?? []).map(normalizeOutcome).filter(Boolean))]
   const commitment = detail?.commitment ?? club.commitment
-  const meta = [
-    ...keys.map((k) => outcomeLabel(k)),
-    commitment && commitment !== 'unknown' ? `${capitalize(commitment)} commitment` : null,
-  ].filter(Boolean)
+  const commitmentText = commitment && commitment !== 'unknown' ? `${capitalize(commitment)} commitment` : null
 
   const why = scrubText(club.why_it_fits)
   const summary = detail ? detail.summary : scrubText(club.summary) || null
@@ -120,20 +117,14 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="text-xl leading-tight">{club.name}</h3>
-          {meta.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {/* the dot stays attached to the item before it, so a wrapped line never starts with "·" */}
-              {meta.map((item, i) => (
-                <Fragment key={item}>
-                  {i > 0 && ' '}
-                  <span className="whitespace-nowrap">
-                    {item}
-                    {i < meta.length - 1 && ' ·'}
-                  </span>
-                </Fragment>
+          {keys.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {keys.map((k) => (
+                <OutcomePill key={k} outcomeKey={k} />
               ))}
-            </p>
+            </div>
           )}
+          {commitmentText && <p className="text-xs text-muted-foreground">{commitmentText}</p>}
         </div>
         <Button
           variant="ghost"
