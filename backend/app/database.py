@@ -12,7 +12,19 @@ engine = create_engine(settings.database_url, connect_args=connect_args)
 # is an idempotent ALTER applied at startup; append here when adding a column.
 _COLUMN_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
     "club": [("outcomes_derived", "BOOLEAN NOT NULL DEFAULT 0")],
+    "ingestlog": [
+        ("source_name", "VARCHAR"),
+        ("source_key", "VARCHAR"),
+    ],
 }
+
+# ADD COLUMN cannot carry an index, so a column declared Field(index=True) above
+# gets one on a fresh database (via create_all) but not on a migrated one. Listing
+# it here keeps the two paths identical; CREATE INDEX IF NOT EXISTS is idempotent.
+_INDEX_MIGRATIONS: list[tuple[str, str, str]] = [
+    ("ingestlog", "ix_ingestlog_source_name", "source_name"),
+    ("ingestlog", "ix_ingestlog_source_key", "source_key"),
+]
 
 
 def _apply_column_migrations() -> None:
@@ -29,9 +41,26 @@ def _apply_column_migrations() -> None:
             print(f"[database] added {table}.{name}")
 
 
+def _apply_index_migrations() -> None:
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    for table, index_name, column in _INDEX_MIGRATIONS:
+        if table not in tables:
+            continue
+        if column not in {c["name"] for c in inspector.get_columns(table)}:
+            continue  # the ALTER above failed; don't mask it with an index error
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({column})"
+                )
+            )
+
+
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _apply_column_migrations()
+    _apply_index_migrations()
 
 
 def get_session():

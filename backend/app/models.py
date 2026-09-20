@@ -66,6 +66,13 @@ class IngestLog(SQLModel, table=True):
     result_json: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+    # Scraped sources (app/services/event_sources/) have no Dropbox file to key
+    # on, so they log against the adapter name plus a per-record key -- the
+    # upstream event id when the source has one, else the event's URL. Nullable
+    # because every existing row predates them and belongs to the Dropbox path.
+    source_name: Optional[str] = Field(default=None, index=True)  # sop | dropbox | adapter slug
+    source_key: Optional[str] = Field(default=None, index=True)  # upstream id or URL
+
     # Fixed outcome list used across enrichment + the personal graph.
     # Keep this list in sync with the frontend's outcome legend.
 
