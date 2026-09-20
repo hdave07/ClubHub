@@ -21,7 +21,9 @@ export function clubIdsUnderOutcome(graph, outcomeNodeId) {
  * - outcome: You -> that outcome -> every club under it (their events stay quiet)
  * @param {{ nodes: { id: string }[], edges: { source: string, target: string }[] }} graph
  * @param {{ clubIds?: string[], outcomeId?: string | null }} [target]
- * @returns {{ nodeIds: Set<string>, edgeIds: Set<string>, clubIds: Set<string> } | null} null when nothing is hovered
+ * @returns {{ nodeIds: Set<string>, edgeIds: Set<string>, clubIds: Set<string>, focus: string | null } | null}
+ *   null when nothing is hovered. `focus` is the hovered star's node id (one club, or the outcome); everything else in
+ *   nodeIds is a direct neighbor of it.
  */
 export function computeHighlight(graph, { clubIds = [], outcomeId = null } = {}) {
   const has = new Set(graph.nodes.map((n) => n.id))
@@ -62,5 +64,6 @@ export function computeHighlight(graph, { clubIds = [], outcomeId = null } = {})
   for (const e of graph.edges) {
     if (e.source === 'you' && e.target.startsWith('outcome:') && nodeIds.has(e.target)) addEdge(e)
   }
-  return { nodeIds, edgeIds, clubIds: clubs }
+  const focus = outcomeId && has.has(outcomeId) ? outcomeId : clubIds.length === 1 && has.has(`club:${clubIds[0]}`) ? `club:${clubIds[0]}` : null
+  return { nodeIds, edgeIds, clubIds: clubs, focus }
 }
