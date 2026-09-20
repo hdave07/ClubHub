@@ -1,8 +1,8 @@
 import { EDGE_REVEAL_MS, TRANSITION_MS } from '@/lib/graphTuning'
-import { gold } from '@/lib/theme'
+import { sky } from '@/lib/theme'
 
 /**
- * A straight connection made of two stacked paths: a faint one that is always there, and a gold one that is drawn
+ * A straight connection made of two stacked paths: a faint one that is always there, and a brighter one that is drawn
  * over it (pathLength=1 and a dash offset) when the edge is part of the hovered constellation, so the line grows
  * outward instead of popping in.
  *
@@ -30,7 +30,7 @@ export default function StarEdge({ id, sourceX, sourceY, targetX, targetY, data 
         d={d}
         pathLength={1}
         fill="none"
-        stroke={gold.color}
+        stroke={sky.textMuted}
         strokeWidth={1.25}
         strokeDasharray="1 1"
         style={{

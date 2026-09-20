@@ -20,7 +20,7 @@ function ArrivalItem({ arrival, onOpen, onDismiss }) {
   const meta = [arrival.clubName, formatEventTime(event.start)].filter(Boolean).join(' · ')
   return (
     <li
-      className="relative flex animate-in items-start gap-3 rounded-lg border border-gold/60 bg-card py-3 pr-9 pl-4 shadow-[0_12px_36px_rgba(0,0,0,0.5)] fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
+      className="relative flex animate-in items-start gap-3 rounded-lg border border-starlight/60 bg-card py-3 pr-9 pl-4 shadow-[0_12px_36px_rgba(0,0,0,0.5)] fade-in slide-in-from-bottom-2 motion-reduce:animate-none"
       style={{ animationDuration: `${motion.base}ms` }}
     >
       <button
@@ -28,8 +28,8 @@ function ArrivalItem({ arrival, onOpen, onDismiss }) {
         onClick={() => onOpen(arrival)}
         className="flex min-w-0 flex-1 flex-col gap-1 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="flex items-center gap-1.5 text-[0.65rem] tracking-[0.2em] text-gold">
-          <span aria-hidden className="size-1.5 rounded-full bg-gold" />
+        <span className="flex items-center gap-1.5 text-[0.65rem] tracking-[0.2em] text-starlight">
+          <span aria-hidden className="size-1.5 rounded-full bg-starlight" />
           NEW FROM DROPBOX
         </span>
         <span className="truncate text-sm">{event.title}</span>

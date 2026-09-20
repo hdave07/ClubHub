@@ -139,7 +139,7 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
       ) : state.phase === 'done' ? (
         <div className="flex flex-col gap-3" aria-live="polite">
           <p className="flex gap-2 text-sm leading-snug">
-            {state.ok && <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-gold" />}
+            {state.ok && <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-foreground" />}
             <span>
               {state.message}
               {state.note && <span className="text-muted-foreground"> {state.note}</span>}
@@ -173,11 +173,11 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
             className={cn(
               'flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-7 text-center outline-none',
               'transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-              dragging ? 'border-gold bg-gold-muted/40' : 'border-border hover:border-gold/50 hover:bg-secondary',
+              dragging ? 'border-foreground bg-secondary' : 'border-border hover:border-muted-foreground hover:bg-secondary',
             )}
             style={{ transitionDuration: `${motion.base}ms` }}
           >
-            <FileUp aria-hidden className={cn('size-5', dragging ? 'text-gold' : 'text-muted-foreground')} />
+            <FileUp aria-hidden className={cn('size-5', dragging ? 'text-foreground' : 'text-muted-foreground')} />
             <span className="text-sm">Drop a poster here</span>
             <span className="text-xs text-muted-foreground">or choose a photo or file</span>
           </button>

@@ -33,7 +33,7 @@ function ExternalLink({ href, children, className, kind = 'link' }) {
       {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
       className={cn(
         'inline-flex items-center gap-0.5 rounded-sm text-sm text-foreground underline-offset-2 outline-none',
-        'hover:text-gold hover:underline focus-visible:ring-2 focus-visible:ring-ring',
+        'hover:underline focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
     >
@@ -116,7 +116,7 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
     >
       <header className="flex items-start gap-3 border-b border-border px-5 pt-4 pb-3.5">
         {rank != null && (
-          <span className="shrink-0 pt-[7px] text-xs text-gold tabular-nums">{String(rank).padStart(2, '0')}</span>
+          <span className="shrink-0 pt-[7px] text-xs text-muted-foreground tabular-nums">{String(rank).padStart(2, '0')}</span>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="text-xl leading-tight">{club.name}</h3>
@@ -212,7 +212,7 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-sm text-foreground underline underline-offset-2 outline-none hover:text-gold focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-sm text-foreground underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Try again
             </button>

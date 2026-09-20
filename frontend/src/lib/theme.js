@@ -1,5 +1,6 @@
-// Warm-neutral palette: overwhelmingly charcoal, cream and gray. Gold is the one meaningful accent
-// (selected, hovered, active). Everything color-related comes from here or from the CSS variables in index.css.
+// Warm-neutral palette: charcoal, cream and gray. Hover and selected use neutrals only (surfaceRaised background,
+// textMuted or cream border). The starlight-blue accent is reserved for the live Dropbox arrival, the arrival toast,
+// the Dropbox provenance line and keyboard focus. Everything color-related comes from here or the CSS variables in index.css.
 export const sky = {
   bg: '#181817', // page
   surface: '#201F1D', // cards and panels
@@ -11,14 +12,10 @@ export const sky = {
   stars: '#F2EEE6', // used at low opacity for the star field
 }
 
-export const gold = {
-  color: '#D8B56A',
-  muted: '#3A3221', // muted accent background
-  glow: 'rgba(216, 181, 106, 0.35)', // only for the Dropbox-moment pulse
+export const accent = {
+  color: '#9DB4E0', // starlight blue
+  muted: '#2C3038', // muted accent background
 }
-
-// Optional secondary accent. Use sparingly.
-export const sage = '#A9B79E'
 
 export const button = {
   bg: '#F2EEE6',

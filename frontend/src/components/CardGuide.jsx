@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 // outcome pills, next event + Dropbox line), with each zone showing what it means instead of real data.
 // Keep it in step with ClubCard when the card's zones change.
 // It is deliberately the one light (inverted) card on the page, so it reads as guidance and can't be mistaken for a
-// club card or for a highlight (real cards are dark; gold marks selected/hover/arrival).
+// club card or for a highlight (real cards are dark; a raised surface and lighter border mark selected/hover; blue marks arrival).
 // The overlay is positioned against the header row (the nearest positioned ancestor), so it lines up with the
 // cards and always fits the screen, instead of hanging off the small circle.
 

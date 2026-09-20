@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { HOVER_SCALE, TRANSITION_MS } from '@/lib/graphTuning'
 import { useNodeView } from '@/lib/graphView'
-import { gold, motion, nodeStyles, sky } from '@/lib/theme'
+import { accent, motion, nodeStyles, sky } from '@/lib/theme'
 import { outcomeLabel } from '@/lib/labels'
 
 // Handles exist only so edges have an anchor. They sit at the node center and are never visible.
@@ -99,7 +99,7 @@ export function YouNode({ data }) {
           alignItems: 'center',
           justifyContent: 'center',
           // a hairline warm ring, no glow
-          boxShadow: `0 0 0 4px ${sky.surface}, 0 0 0 5px ${gold.color}66`,
+          boxShadow: `0 0 0 4px ${sky.surface}, 0 0 0 5px ${sky.textMuted}66`,
         }}
       >
         You
@@ -121,7 +121,7 @@ export function OutcomeNode({ data }) {
           height: size,
           borderRadius: '50%',
           background: sky.surface, // hides the edge line behind the ring
-          border: `1.5px solid ${v.lit ? gold.color : sky.textMuted}`,
+          border: `1.5px solid ${v.lit ? sky.heading : sky.textMuted}`,
           transform: v.direct ? `scale(${HOVER_SCALE})` : 'none',
           transition: `border-color ${TRANSITION_MS}ms ${EASE}, transform ${TRANSITION_MS}ms ${EASE}`,
         }}
@@ -165,14 +165,13 @@ export function ClubNode({ data }) {
           width: size,
           height: size,
           borderRadius: '50%',
-          background: emphasized ? gold.color : sky.heading,
+          background: sky.heading,
           opacity: emphasized ? 1 : data.brightness,
           transform: emphasized ? `scale(${HOVER_SCALE})` : 'none',
           // selected also gets a hairline ring, so the state isn't color alone
           boxShadow:
             [
-              v.selected && `0 0 0 3px ${sky.surface}, 0 0 0 4px ${gold.color}`,
-              v.direct && `0 0 9px 2px ${gold.color}55`, // a faint halo, only on the star under the pointer
+              v.selected && `0 0 0 3px ${sky.surface}, 0 0 0 4px ${sky.heading}`,
             ]
               .filter(Boolean)
               .join(', ') || 'none',
@@ -223,7 +222,7 @@ export function EventNode({ data }) {
           width: size,
           height: size,
           borderRadius: '50%',
-          background: lit ? gold.color : sky.textMuted,
+          background: lit ? sky.heading : sky.textMuted,
           opacity: lit ? 0.95 : 0.5,
           transition: `background-color ${motion.base}ms, opacity ${motion.base}ms`,
         }}
@@ -237,7 +236,7 @@ export function EventNode({ data }) {
   )
 }
 
-// A new Dropbox event just arrived: one restrained gold highlight (fade in, hold, fade out; see .arrival in index.css).
+// A new Dropbox event just arrived: one restrained blue highlight (fade in, hold, fade out; see .arrival in index.css).
 function Arrival() {
   return (
     <span
@@ -252,8 +251,8 @@ function Arrival() {
         marginLeft: -16,
         marginTop: -16,
         borderRadius: '50%',
-        border: `1.5px solid ${gold.color}`,
-        background: `${gold.muted}`,
+        border: `1.5px solid ${accent.color}`,
+        background: accent.muted,
         pointerEvents: 'none',
       }}
     >
@@ -267,7 +266,7 @@ function Arrival() {
           marginLeft: -4.5,
           marginTop: -4.5,
           borderRadius: '50%',
-          background: gold.color,
+          background: accent.color,
         }}
       />
     </span>

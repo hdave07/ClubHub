@@ -16,7 +16,7 @@ const nodeTypes = { you: YouNode, outcome: OutcomeNode, club: ClubNode, event: E
 const edgeTypes = { star: StarEdge }
 const NO_PULSE = new Set()
 
-// Edges are hairlines: nearly invisible until a club is focused, when its path turns gold.
+// Edges are hairlines: nearly invisible until a club is focused, when its path turns brighter.
 const EDGE = `${sky.heading}1A`
 const EDGE_EVENT = `${sky.heading}12` // event edges are the faintest
 
@@ -162,7 +162,7 @@ export default function StarGraph({
   )
 
   // The hovered constellation's connections, applied straight to the (persistent) edge elements so their CSS
-  // transitions run: the gold line draws in, the rest of the faint lines ease down. See StarEdge.
+  // transitions run: the bright line draws in, the rest of the faint lines ease down. See StarEdge.
   useEffect(() => {
     const root = rootRef.current
     if (!root) return undefined

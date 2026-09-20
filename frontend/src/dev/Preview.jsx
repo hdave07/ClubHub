@@ -7,7 +7,7 @@ import ClubCard, { ClubCardSkeleton } from '@/components/ClubCard'
 import ClubList from '@/components/ClubList'
 import StarGraph from '@/components/StarGraph'
 import { clubIdsForPulse } from '@/lib/buildGraph'
-import { button, gold, sage, sky } from '@/lib/theme'
+import { accent, button, sky } from '@/lib/theme'
 import { previewClubs } from './previewClubs'
 
 // ?preview=live  -> only the cards + graph pair (add &hover=0 or &pulse to start in those states)
@@ -138,9 +138,8 @@ export default function Preview() {
           {Object.entries(sky).map(([k, v]) => (
             <Swatch key={k} name={k} color={v} />
           ))}
-          <Swatch name="gold" color={gold.color} />
-          <Swatch name="gold muted" color={gold.muted} />
-          <Swatch name="sage" color={sage} />
+          <Swatch name="accent" color={accent.color} />
+          <Swatch name="accent muted" color={accent.muted} />
           <Swatch name="button" color={button.bg} />
         </div>
       </Section>

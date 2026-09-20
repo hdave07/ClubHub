@@ -9,7 +9,7 @@ import { normalizeOutcome } from '@/types'
 
 // The card has fixed zones in a fixed order, so every card scans the same way:
 //   header (rank, name, commitment) → why it fits you → what it offers (outcome pills) → next event (+ Dropbox)
-// Gold stays for selected/hover/arrival only. Sage is used for one thing: Dropbox provenance.
+// Hover and selected are neutral (raised surface + border). Blue is for the Dropbox arrival and provenance only.
 
 const MAX_PILLS = 2
 const LEVELS = { casual: 1, moderate: 2, intense: 3 }
@@ -102,7 +102,7 @@ function NextEvent({ event }) {
 /**
  * @param {{ club: object, rank?: number, selected?: boolean, hovered?: boolean, highlighted?: boolean,
  *   onSelect?: (id: string) => void, onHover?: (id: string | null) => void }} props
- * `highlighted`: a new Dropbox event just arrived for this club (one restrained gold highlight, no loop).
+ * `highlighted`: a new Dropbox event just arrived for this club (one restrained blue highlight, no loop).
  */
 export default function ClubCard({ club, rank, selected = false, hovered = false, highlighted = false, onSelect, onHover }) {
   const keys = outcomeKeys(club.outcomes)
@@ -131,20 +131,20 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
         'transition-[background-color,border-color,box-shadow]',
         'focus-visible:ring-2 focus-visible:ring-ring',
         selected
-          ? 'border-gold bg-secondary ring-1 ring-gold/50'
+          ? 'border-foreground bg-secondary'
           : hovered
-            ? 'border-gold/40 bg-secondary'
-            : 'border-transparent bg-card hover:border-gold/40 hover:bg-secondary',
+            ? 'border-muted-foreground bg-secondary'
+            : 'border-transparent bg-card hover:border-muted-foreground hover:bg-secondary',
       )}
     >
       {highlighted && (
         <span
           aria-hidden
-          className="arrival pointer-events-none absolute inset-0 -z-10 rounded-lg border border-gold bg-gold-muted/60"
+          className="arrival pointer-events-none absolute inset-0 -z-10 rounded-lg border border-starlight bg-starlight-muted"
         />
       )}
       {rank != null && (
-        <span className={cn('w-5 shrink-0 pt-[3px] text-xs tabular-nums', selected ? 'text-gold' : 'text-muted-foreground')}>
+        <span className={cn('w-5 shrink-0 pt-[3px] text-xs tabular-nums', selected ? 'text-foreground' : 'text-muted-foreground')}>
           {String(rank).padStart(2, '0')}
         </span>
       )}

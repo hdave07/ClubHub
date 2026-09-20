@@ -33,9 +33,8 @@
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
   --heading: oklch(0.145 0 0);
-  --gold: #D8B56A;
-  --gold-muted: #3A3221;
-  --sage: #A9B79E;
+  --starlight: #9DB4E0;
+  --starlight-muted: #2C3038;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -53,9 +52,8 @@ body {
 
 @theme inline {
   --color-heading: var(--heading);
-  --color-gold: var(--gold);
-  --color-gold-muted: var(--gold-muted);
-  --color-sage: var(--sage);
+  --color-starlight: var(--starlight);
+  --color-starlight-muted: var(--starlight-muted);
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Fraunces Variable", ui-serif, Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -117,10 +115,9 @@ body {
   --destructive: oklch(0.704 0.191 22.216);
   --border: #383631;
   --input: #383631;
-  --ring: #D8B56A;
-  --gold: #D8B56A;
-  --gold-muted: #3A3221;
-  --sage: #A9B79E;
+  --ring: #9DB4E0;
+  --starlight: #9DB4E0;
+  --starlight-muted: #2C3038;
   --radius: 0.75rem;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -134,7 +131,7 @@ body {
   --sidebar-accent: #262522;
   --sidebar-accent-foreground: #F2EEE6;
   --sidebar-border: #383631;
-  --sidebar-ring: #D8B56A;
+  --sidebar-ring: #9DB4E0;
 }
 
 @layer base {

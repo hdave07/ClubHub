@@ -116,7 +116,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   const matched = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
 
   // Live Dropbox arrivals (main plan flow 3): merged into the cards, the graph and the panel; each one gets a single
-  // gold highlight. Preview mode has no backend to poll; arrivals there come from the dev "Simulate drop".
+  // blue highlight. Preview mode has no backend to poll; arrivals there come from the dev "Simulate drop".
   const clubIds = useMemo(() => matched.map((c) => String(c.id)), [matched])
   const [toasts, setToasts] = useState([])
   // An arrival whose card is out of view also gets a toast, so it isn't missed.
@@ -221,7 +221,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
             <Button
               variant="ghost"
               size="sm"
-              className={adding ? 'text-gold' : 'text-muted-foreground'}
+              className={adding ? 'text-foreground' : 'text-muted-foreground'}
               aria-expanded={adding}
               onClick={() => setAdding((v) => !v)}
             >
