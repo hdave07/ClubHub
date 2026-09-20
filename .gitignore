@@ -19,7 +19,10 @@ backend/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
-backend/data/chroma/
+# backend/data/chroma/ -- deliberately NOT ignored: Render's free tier has no persistent disk, so the
+# search index has to ship via git or every deploy comes up with /recommend returning empty results.
+# Re-run `python -m app.services.enrichment_batch --index-only --limit <club count>` and commit again
+# whenever clubs are added or re-enriched.
 
 # Playwright MCP
 .playwright-mcp/
