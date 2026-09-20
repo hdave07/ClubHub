@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AddEventPanel from '@/components/AddEventPanel'
 import ArrivalToast from '@/components/ArrivalToast'
 import CardGuide from '@/components/CardGuide'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
+import DropboxGlyph from '@/components/DropboxGlyph'
 import Mascot from '@/components/Mascot'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
@@ -15,8 +16,10 @@ import { SHOW_MASCOT } from '@/lib/flags'
 import { sky } from '@/lib/theme'
 import { clubIdsUnderOutcome } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
+import { PosterPickerContext } from '@/lib/posterPicker'
 import { useClub } from '@/lib/useClub'
 import { cn } from '@/lib/utils'
+import { PICKER_ACCEPT, useFlierUpload } from '@/lib/useFlierUpload'
 import { useLiveEvents } from '@/lib/useLiveEvents'
 import { useMascotState } from '@/lib/useMascotState'
 
@@ -105,7 +108,6 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   const [previewClubs, setPreviewClubs] = useState(null)
   const [previewDetails, setPreviewDetails] = useState(null)
   const [SimulateDrop, setSimulateDrop] = useState(null)
-  const [adding, setAdding] = useState(false)
 
   // Dev only: "Simulate Dropbox drop" button (src/dev/SimulateDrop.jsx). Stripped from production builds.
   useEffect(() => {
@@ -155,8 +157,13 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
     [dismissToast],
   )
   const resultClubIds = useMemo(() => new Set(clubIds), [clubIds])
-  const closeAdding = useCallback(() => setAdding(false), [])
   const onPublished = useCallback((events) => events.forEach(inject), [inject])
+  // The poster drop: one hidden file input for the whole screen. The header button and the "Have a poster?" links
+  // (posterPicker.js) open it; AddEventPanel only reports what happened.
+  const pickerInput = useRef(null)
+  const openPicker = useCallback(() => pickerInput.current?.click(), [])
+  const flier = useFlierUpload({ resultClubIds, onPublished })
+  const uploading = flier.state.phase === 'uploading'
   const clubName = (id) => matched.find((c) => String(c.id) === String(id))?.name ?? ''
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data && { ...data, clubs }), [clubs, data])
   // One memoized layout shared by the graph and the hover logic: hovering never rebuilds it.
@@ -237,107 +244,126 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   const empty = !isLoading && clubs.length === 0
 
   return (
-    <div
-      className={cn(
-        'mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh',
-        SHOW_MASCOT && 'max-lg:pb-28', // room under the content for the mascot
-      )}
-      aria-busy={isLoading}
-    >
-      <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
-          {!isLoading && !empty && <CardGuide />}
+    <PosterPickerContext.Provider value={openPicker}>
+      <div
+        className={cn(
+          'mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh',
+          SHOW_MASCOT && 'max-lg:pb-28', // room under the content for the mascot
+        )}
+        aria-busy={isLoading}
+      >
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
+            {!isLoading && !empty && <CardGuide />}
+          </div>
+          {!isLoading && !empty && (
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  aria-label="Remap your constellation"
+                  onClick={onEdit}
+                  className="rounded-sm text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Remap
+                </button>
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-[9px] text-sm leading-none font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
+                >
+                  <DropboxGlyph />
+                  Drop a poster
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground max-sm:hidden">Posters and PDFs become events · saved to Dropbox</p>
+            </div>
+          )}
+          <AddEventPanel state={flier.state} onClose={flier.reset} onAgain={openPicker} />
         </div>
-        {!isLoading && !empty && (
-          <div className="flex flex-wrap items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={adding ? 'text-foreground' : 'text-muted-foreground'}
-              aria-expanded={adding}
-              onClick={() => setAdding((v) => !v)}
-            >
-              Add an event
-            </Button>
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEdit}>
-              Remap your constellation
-            </Button>
+
+        <input
+          ref={pickerInput}
+          type="file"
+          accept={PICKER_ACCEPT}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = '' // choosing the same file again still fires
+            if (file) flier.upload(file)
+          }}
+        />
+
+        {isLoading && (
+          <div aria-hidden className="mt-4 flex gap-3">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span
+                key={i}
+                className="twinkle size-1.5 rounded-full"
+                style={{ background: sky.stars, animationDelay: `${i * 0.2}s` }}
+              />
+            ))}
           </div>
         )}
-        <AddEventPanel
-          open={adding && !isLoading && !empty}
-          onClose={closeAdding}
-          resultClubIds={resultClubIds}
-          onPublished={onPublished}
+
+        {empty ? (
+          <div className="mt-8 flex flex-col items-start gap-4">
+            <p className="text-muted-foreground">
+              No stars matched yet. Try describing what you want a little differently.
+            </p>
+            <Button onClick={onEdit}>Remap your constellation</Button>
+          </div>
+        ) : (
+          <div className="mt-8 flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
+            <ClubList
+              clubs={clubs}
+              loading={isLoading}
+              selectedId={selectedId}
+              hoveredIds={hoveredClubIds}
+              dimOthers={hoveredOutcome != null}
+              scrollToId={scrollToId}
+              highlightIds={highlightIds}
+              onSelect={setSelectedId}
+              onHover={hoverFromCard}
+            />
+            <GraphPanel
+              graph={graph}
+              loading={isLoading}
+              selectedId={selectedId}
+              hoveredId={hoveredClubId}
+              hoveredOutcome={hoveredOutcome}
+              onSelect={setSelectedId}
+              onHover={hoverFromGraph}
+              onHoverOutcome={hoverOutcome}
+              pulseIds={pulseIds}
+              club={selectedClub}
+              rank={selectedIndex + 1}
+              panel={panel}
+              onClose={closePanel}
+              reserveMascot={SHOW_MASCOT}
+            />
+          </div>
+        )}
+
+        {SimulateDrop && !isLoading && <SimulateDrop clubs={matched} onDrop={inject} />}
+
+        {/* Bottom-right, in the strip reserved under the graph. Hidden while the club panel is open and under 640px. */}
+        {SHOW_MASCOT && !selectedClub && !err && (
+          <div className="fixed right-4 bottom-4 z-20 max-sm:hidden">
+            <Mascot size={88} state={mascotState} onClick={openSoonestEvent} />
+          </div>
+        )}
+
+        <ArrivalToast
+          arrivals={toasts.map((t) => ({ ...t, clubName: clubName(t.clubId) }))}
+          onOpen={openFromToast}
+          onDismiss={dismissToast}
         />
       </div>
-
-      {isLoading && (
-        <div aria-hidden className="mt-4 flex gap-3">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span
-              key={i}
-              className="twinkle size-1.5 rounded-full"
-              style={{ background: sky.stars, animationDelay: `${i * 0.2}s` }}
-            />
-          ))}
-        </div>
-      )}
-
-      {empty ? (
-        <div className="mt-8 flex flex-col items-start gap-4">
-          <p className="text-muted-foreground">
-            No stars matched yet. Try describing what you want a little differently.
-          </p>
-          <Button onClick={onEdit}>Remap your constellation</Button>
-        </div>
-      ) : (
-        <div className="mt-8 flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
-          <ClubList
-            clubs={clubs}
-            loading={isLoading}
-            selectedId={selectedId}
-            hoveredIds={hoveredClubIds}
-            dimOthers={hoveredOutcome != null}
-            scrollToId={scrollToId}
-            highlightIds={highlightIds}
-            onSelect={setSelectedId}
-            onHover={hoverFromCard}
-          />
-          <GraphPanel
-            graph={graph}
-            loading={isLoading}
-            selectedId={selectedId}
-            hoveredId={hoveredClubId}
-            hoveredOutcome={hoveredOutcome}
-            onSelect={setSelectedId}
-            onHover={hoverFromGraph}
-            onHoverOutcome={hoverOutcome}
-            pulseIds={pulseIds}
-            club={selectedClub}
-            rank={selectedIndex + 1}
-            panel={panel}
-            onClose={closePanel}
-            reserveMascot={SHOW_MASCOT}
-          />
-        </div>
-      )}
-
-      {SimulateDrop && !isLoading && <SimulateDrop clubs={matched} onDrop={inject} />}
-
-      {/* Bottom-right, in the strip reserved under the graph. Hidden while the club panel is open and under 640px. */}
-      {SHOW_MASCOT && !selectedClub && !err && (
-        <div className="fixed right-4 bottom-4 z-20 max-sm:hidden">
-          <Mascot size={88} state={mascotState} onClick={openSoonestEvent} />
-        </div>
-      )}
-
-      <ArrivalToast
-        arrivals={toasts.map((t) => ({ ...t, clubName: clubName(t.clubId) }))}
-        onOpen={openFromToast}
-        onDismiss={dismissToast}
-      />
-    </div>
+    </PosterPickerContext.Provider>
   )
 }
