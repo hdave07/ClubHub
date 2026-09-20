@@ -11,6 +11,8 @@ import { clubIdsForPulse } from '@/lib/buildGraph'
 import { sanitizeClub } from '@/lib/club'
 import { applyArrivals, applyArrivalsToDetail } from '@/lib/events'
 import { sky } from '@/lib/theme'
+import { clubIdsUnderOutcome } from '@/lib/highlight'
+import { layoutGraph } from '@/lib/layout'
 import { useClub } from '@/lib/useClub'
 import { useLiveEvents } from '@/lib/useLiveEvents'
 
@@ -18,6 +20,7 @@ import { useLiveEvents } from '@/lib/useLiveEvents'
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
 
 const noop = () => {}
+const NO_CLUBS = new Set()
 const MAX_TOASTS = 3
 
 const cardFor = (clubId) =>
@@ -34,18 +37,34 @@ function cardOnScreen(clubId) {
   return (!viewport || inside(viewport)) && inside({ top: 0, bottom: window.innerHeight })
 }
 
-function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHover, pulseIds, club, rank, panel, onClose }) {
+function GraphPanel({
+  graph,
+  loading,
+  selectedId,
+  hoveredId,
+  hoveredOutcome,
+  onSelect,
+  onHover,
+  onHoverOutcome,
+  pulseIds,
+  club,
+  rank,
+  panel,
+  onClose,
+}) {
   return (
     <div className="relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0">
       {loading ? (
         <StarField twinkle />
       ) : (
         <StarGraph
-          response={response}
+          graph={graph}
           selectedId={selectedId}
           hoveredId={hoveredId}
+          hoveredOutcome={hoveredOutcome}
           onSelect={onSelect}
           onHover={onHover}
+          onHoverOutcome={onHoverOutcome}
           pulseIds={pulseIds}
           panelOpen={!!club}
         />
@@ -68,7 +87,11 @@ function GraphPanel({ response, loading, selectedId, hoveredId, onSelect, onHove
 
 export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs }) {
   const [selectedId, setSelectedId] = useState(null)
-  const [hoveredId, setHoveredId] = useState(null)
+  // Hover is transient, selection is sticky: the graph and the cards show the hover while it lasts, then fall back
+  // to the selection. Hover never opens the club panel; only a click does.
+  const [hoveredClubId, setHoveredClubId] = useState(null)
+  const [hoveredOutcome, setHoveredOutcome] = useState(null) // an outcome node id, e.g. "outcome:career"
+  const [scrollToId, setScrollToId] = useState(null) // a single club hovered in the graph: bring its card into view
   const [previewClubs, setPreviewClubs] = useState(null)
   const [previewDetails, setPreviewDetails] = useState(null)
   const [SimulateDrop, setSimulateDrop] = useState(null)
@@ -126,6 +149,30 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
   const onPublished = useCallback((events) => events.forEach(inject), [inject])
   const clubName = (id) => matched.find((c) => String(c.id) === String(id))?.name ?? ''
   const graphResponse = useMemo(() => (USE_PREVIEW_DATA ? { clubs } : data && { ...data, clubs }), [clubs, data])
+  // One memoized layout shared by the graph and the hover logic: hovering never rebuilds it.
+  const graph = useMemo(() => layoutGraph(graphResponse), [graphResponse])
+
+  const hoverFromCard = useCallback((id) => {
+    setHoveredClubId(id)
+    setHoveredOutcome(null)
+    setScrollToId(null) // the card under the pointer or focus is already where the user is looking
+  }, [])
+  const hoverFromGraph = useCallback((id) => {
+    setHoveredClubId(id)
+    setHoveredOutcome(null)
+    setScrollToId(id)
+  }, [])
+  const hoverOutcome = useCallback((outcomeId) => {
+    setHoveredOutcome(outcomeId)
+    setHoveredClubId(null)
+    setScrollToId(null) // several cards light up at once, so the list does not scroll
+  }, [])
+  // The cards to highlight: one club, or every club under a hovered outcome.
+  const hoveredClubIds = useMemo(() => {
+    if (hoveredClubId != null) return new Set([String(hoveredClubId)])
+    if (hoveredOutcome) return new Set(clubIdsUnderOutcome(graph, hoveredOutcome))
+    return NO_CLUBS
+  }, [hoveredClubId, hoveredOutcome, graph])
 
   // The selected club's panel: it renders at once from the match; GET /clubs/:id (or the preview body) fills in the rest.
   const selectedIndex = clubs.findIndex((c) => String(c.id) === String(selectedId))
@@ -224,18 +271,21 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             clubs={clubs}
             loading={isLoading}
             selectedId={selectedId}
-            hoveredId={hoveredId}
+            hoveredIds={hoveredClubIds}
+            scrollToId={scrollToId}
             highlightIds={highlightIds}
             onSelect={setSelectedId}
-            onHover={setHoveredId}
+            onHover={hoverFromCard}
           />
           <GraphPanel
-            response={graphResponse}
+            graph={graph}
             loading={isLoading}
             selectedId={selectedId}
-            hoveredId={hoveredId}
+            hoveredId={hoveredClubId}
+            hoveredOutcome={hoveredOutcome}
             onSelect={setSelectedId}
-            onHover={setHoveredId}
+            onHover={hoverFromGraph}
+            onHoverOutcome={hoverOutcome}
             pulseIds={pulseIds}
             club={selectedClub}
             rank={selectedIndex + 1}
