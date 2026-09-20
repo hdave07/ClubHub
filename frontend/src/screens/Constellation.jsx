@@ -221,6 +221,14 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             <Button
               variant="ghost"
               size="sm"
+              className="text-muted-foreground"
+              onClick={() => window.open('/?view=directory', '_blank', 'noopener')}
+            >
+              Full Directory
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               className={adding ? 'text-gold' : 'text-muted-foreground'}
               aria-expanded={adding}
               onClick={() => setAdding((v) => !v)}

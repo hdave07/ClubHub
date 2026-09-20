@@ -27,6 +27,18 @@ export async function getClub(id, { signal } = {}) {
 }
 
 /**
+ * GET /clubs -> every club row (raw database rows, unranked). The Full Directory's browse list is built from
+ * this; display through toDirectoryClub (lib/directory.js), which whitelists fields the same way sanitizeClub
+ * does for the detail panel.
+ * @param {{ signal?: AbortSignal }} [opts]
+ * @returns {Promise<object[]>}
+ */
+export async function getClubs({ signal } = {}) {
+  const { data } = await api.get('/clubs', { signal })
+  return data
+}
+
+/**
  * GET /events?since= -> published events starting at or after `since` (raw database rows).
  * The backend compares `since` with naive UTC columns, so it is sent as naive UTC ("2026-09-19T23:40:00").
  * Display only through toLiveEvents (lib/events.js).
