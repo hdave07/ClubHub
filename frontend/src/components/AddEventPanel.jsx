@@ -1,7 +1,8 @@
 import { Check, FileUp, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { uploadFlier } from '@/lib/api'
+import { Input } from '@/components/ui/input'
+import { confirmEvent, uploadFlier } from '@/lib/api'
 import { motion, sky } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +29,82 @@ function errorMessage(e) {
 }
 
 /**
+ * One event extraction couldn't fully read: title and location came through, but `event.missing` (see
+ * backend/app/services/extraction.py's missing_fields) says which single piece didn't. Asks for exactly
+ * that piece -- a full date+time when nothing was legible, or just a time when the date was -- and
+ * publishes it immediately (POST /events/:id/confirm) rather than it sitting in pending_review forever.
+ * @param {{ event: object, onConfirmed: (eventId: string, updated: object) => void }} props
+ */
+function ConfirmEventForm({ event, onConfirmed }) {
+  const needsDate = event.missing?.includes('date') ?? true
+  // start_local is a bare date ("2026-09-25") in exactly the "missing time" case (see missing_fields):
+  // the model read a date but no time of day.
+  const knownDate = !needsDate ? event.start_local : null
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!value || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await confirmEvent(event.id, needsDate ? value : `${knownDate}T${value}:00`)
+      onConfirmed(event.id, updated)
+    } catch (err) {
+      setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : "Couldn't save that.")
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+      <p className="truncate text-sm" title={event.title}>
+        {event.title}
+      </p>
+      <div className="flex items-center gap-2">
+        {needsDate ? (
+          <Input
+            type="datetime-local"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-label={`Date and time for ${event.title}`}
+            required
+            className="h-8 flex-1"
+          />
+        ) : (
+          <>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {new Date(`${knownDate}T00:00:00`).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+            <Input
+              type="time"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              aria-label={`Time for ${event.title}`}
+              required
+              className="h-8 flex-1"
+            />
+          </>
+        )}
+        <Button type="submit" size="sm" disabled={!value || busy}>
+          {busy ? 'Saving…' : 'Confirm'}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-foreground/90">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
+
+/**
  * "Add an event": a student drops a poster or flyer; the backend stores it in Dropbox and reads it (POST /upload).
  * Published events for the student's own result clubs go to `onPublished` (they light up at once); everything else
  * is explained in the panel. Never promises an event will appear: unclear details wait for review.
@@ -35,10 +112,16 @@ function errorMessage(e) {
  *   onPublished: (events: object[]) => void, className?: string }} props
  */
 export default function AddEventPanel({ open, onClose, resultClubIds, onPublished, className }) {
-  const [state, setState] = useState({ phase: 'idle' }) // idle | uploading | done | error
+  const [state, setState] = useState({ phase: 'idle' }) // idle | uploading | confirm | done | error
   const [dragging, setDragging] = useState(false)
   const input = useRef(null)
   const panel = useRef(null)
+  // Mirrors the confirm phase's bookkeeping, mutated synchronously so two forms confirmed close together can't
+  // race: each ConfirmEventForm's onConfirmed prop is a fresh closure per render, so if one submission is still
+  // in flight when another's resolves and re-renders this component, the in-flight one's callback would read a
+  // stale `state.pending` when it later resolves. This ref is the same object across every render, so whichever
+  // closure calls handleConfirmed always reads and mutates the current value.
+  const confirming = useRef(null) // { pending, mine, clubId, publishedCount } | null
 
   useEffect(() => {
     if (!open) return
@@ -60,10 +143,23 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
     try {
       const res = await uploadFlier(file)
       const clubId = res.club?.id != null ? String(res.club.id) : null
-      const published = (res.events ?? []).filter((e) => e.status === 'published')
+      const events = res.events ?? []
+      const published = events.filter((e) => e.status === 'published')
+      // Never sits in pending_review unreachable: anything else came with `missing` (extraction.py's
+      // missing_fields) saying exactly what to ask for, so it goes straight to a confirm form instead.
+      const pending = events.filter((e) => e.status !== 'published')
       const mine = clubId != null && resultClubIds.has(clubId)
+
       if (mine && published.length) {
         onPublished(published.map((e) => ({ ...e, club_id: clubId, source: 'dropbox' })))
+      }
+
+      if (pending.length) {
+        confirming.current = { pending, mine, clubId, publishedCount: published.length }
+        setState({ phase: 'confirm', pending })
+        return
+      }
+      if (mine && published.length) {
         setState({ phase: 'idle' })
         onClose() // the card and star light up; the panel would only cover them
         return
@@ -74,6 +170,31 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
     } catch (e) {
       setState({ phase: 'error', message: errorMessage(e) })
     }
+  }
+
+  function handleConfirmed(eventId, updated) {
+    const c = confirming.current
+    if (!c) return
+    c.pending = c.pending.filter((e) => e.id !== eventId)
+    c.publishedCount += 1
+    if (c.mine) onPublished([{ ...updated, club_id: c.clubId, source: 'dropbox' }])
+
+    if (c.pending.length) {
+      setState({ phase: 'confirm', pending: c.pending })
+      return
+    }
+    confirming.current = null
+    if (c.mine) {
+      setState({ phase: 'idle' })
+      onClose()
+      return
+    }
+    setState({
+      phase: 'done',
+      ok: true,
+      message: `Added ${c.publishedCount} event${c.publishedCount === 1 ? '' : 's'}.`,
+      note: "It'll show for students it matches.",
+    })
   }
 
   const pick = () => input.current?.click()
@@ -135,6 +256,19 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
           </div>
           <p className="text-sm">Reading your poster…</p>
           <p className="max-w-full truncate text-xs text-muted-foreground">{state.name} · about 10 seconds</p>
+        </div>
+      ) : state.phase === 'confirm' ? (
+        <div className="flex flex-col gap-3" aria-live="polite">
+          <p className="text-sm leading-snug text-muted-foreground">
+            {state.pending.length === 1
+              ? "We couldn't read this one clearly. Mind confirming it?"
+              : `We couldn't read ${state.pending.length} of these clearly. Mind confirming them?`}
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {state.pending.map((event) => (
+              <ConfirmEventForm key={event.id} event={event} onConfirmed={handleConfirmed} />
+            ))}
+          </div>
         </div>
       ) : state.phase === 'done' ? (
         <div className="flex flex-col gap-3" aria-live="polite">

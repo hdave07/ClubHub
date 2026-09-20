@@ -66,3 +66,19 @@ export async function uploadFlier(file) {
   const { data } = await api.post('/upload', body)
   return data
 }
+
+/**
+ * POST /events/:id/confirm -- a human supplies the field extraction couldn't confidently read (see
+ * `missing` on an upload response event), publishing it immediately instead of it sitting in
+ * pending_review forever. `start` is local Toronto wall-clock time, ISO 8601 with no UTC offset --
+ * either a <input type="datetime-local">'s value as-is ("2026-09-24T19:00", no seconds) or a
+ * known-date + <input type="time"> combined by the caller ("2026-09-24T19:00:00"). The backend's
+ * to_utc() (datetime.fromisoformat) accepts both.
+ * @param {string} eventId
+ * @param {string} start
+ * @returns {Promise<object>} the updated (now published) event row
+ */
+export async function confirmEvent(eventId, start) {
+  const { data } = await api.post(`/events/${encodeURIComponent(eventId)}/confirm`, { start })
+  return data
+}

@@ -144,6 +144,9 @@ class ExtractedEvent:
     status: str  # published | pending_review
     start_local: str | None = None  # what the model actually said, for debugging
     is_reschedule: bool = False  # poster explicitly says this replaces an earlier date
+    # Which field a human needs to supply before a pending_review event can publish. Always empty for
+    # a published event. See missing_fields() -- kept in lock-step with decide_status() by construction.
+    missing: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -212,6 +215,28 @@ def decide_status(
     if title and start is not None and has_time and confidence >= CONFIDENCE_THRESHOLD:
         return "published"
     return "pending_review"
+
+
+def missing_fields(
+    title: str | None, start: datetime | None, has_time: bool, confidence: float
+) -> list[str]:
+    """Which single field to ask a human for, when decide_status() sends this event to review.
+
+    A pending_review event never reaches a review queue nobody looks at -- the upload flow prompts
+    for this field immediately (AddEventPanel.jsx) so the person who just dropped the poster can
+    supply it on the spot. Deliberately narrow: title is required to create an Event row at all (see
+    the `if not title: continue` guard in extract_file), so it can never actually be missing here, and
+    location was never part of the safety gate. That leaves exactly one question to ask -- the date, or
+    just the time when the date is already known -- matching decide_status()'s own condition so the two
+    can't drift apart.
+
+    Low confidence with every field present still asks for the date rather than nothing: the model
+    itself is unsure of its own read, and a re-typed date is a cheap way to catch a misread one before
+    it reaches the live feed.
+    """
+    if decide_status(title, start, confidence, has_time) == "published":
+        return []
+    return ["time"] if start is not None and not has_time else ["date"]
 
 
 def to_utc(value: str | None) -> datetime | None:
@@ -370,6 +395,7 @@ def extract_file(
             continue  # title is required by the schema; skip rather than write a blank row
         start_raw = item.get("start")
         start = to_utc(start_raw)
+        has_time = has_time_component(start_raw)
         events.append(
             ExtractedEvent(
                 title=title,
@@ -378,11 +404,10 @@ def extract_file(
                 location=item.get("location"),
                 description=item.get("description"),
                 rsvp_url=item.get("rsvp_url"),
-                status=decide_status(
-                    title, start, confidence, has_time_component(start_raw)
-                ),
+                status=decide_status(title, start, confidence, has_time),
                 start_local=start_raw,
                 is_reschedule=bool(item.get("is_reschedule")),
+                missing=missing_fields(title, start, has_time, confidence),
             )
         )
 
