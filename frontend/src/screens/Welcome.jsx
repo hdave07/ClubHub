@@ -1,10 +1,6 @@
-import { lazy, Suspense, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { sky } from '@/lib/theme'
-
-// Loaded only on this screen (it brings a stylesheet and an iframe).
-const LandingBackground = lazy(() => import('@/components/LandingBackground'))
 
 // [left %, top %] of the CSS-only stars
 const STARS = [
@@ -14,15 +10,8 @@ const STARS = [
 ]
 
 export default function Welcome({ onExplore, onSkip }) {
-  // Reduced motion: keep the static CSS stars and skip the animated particle field.
-  const [animate] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 text-center">
-      {animate && (
-        <Suspense fallback={null}>
-          <LandingBackground />
-        </Suspense>
-      )}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         {STARS.map(([x, y], i) => (
           <span
