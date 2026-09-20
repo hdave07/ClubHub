@@ -4,17 +4,21 @@ import ArrivalToast from '@/components/ArrivalToast'
 import CardGuide from '@/components/CardGuide'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
+import Mascot from '@/components/Mascot'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
 import { clubIdsForPulse } from '@/lib/buildGraph'
 import { sanitizeClub } from '@/lib/club'
 import { applyArrivals, applyArrivalsToDetail } from '@/lib/events'
+import { SHOW_MASCOT } from '@/lib/flags'
 import { sky } from '@/lib/theme'
 import { clubIdsUnderOutcome } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
 import { useClub } from '@/lib/useClub'
+import { cn } from '@/lib/utils'
 import { useLiveEvents } from '@/lib/useLiveEvents'
+import { useMascotState } from '@/lib/useMascotState'
 
 // Dev only: backend /recommend is a stub. Remove after real data lands.
 const USE_PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
@@ -51,9 +55,15 @@ function GraphPanel({
   rank,
   panel,
   onClose,
+  reserveMascot,
 }) {
   return (
-    <div className="relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0">
+    <div
+      className={cn(
+        'relative min-h-96 flex-1 overflow-hidden rounded-xl bg-card lg:min-h-0',
+        reserveMascot && 'lg:mb-[4.25rem]', // a strip under the graph for the fixed mascot
+      )}
+    >
       {loading ? (
         <StarField twinkle />
       ) : (
@@ -187,6 +197,26 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   const panel = { ...rawPanel, detail: panelDetail }
   const closePanel = useCallback(() => setSelectedId(null), [])
 
+  // The mascot: scanning while /recommend runs, "discovered" for 2.5 s when an arrival starts its highlight.
+  const mascotState = useMascotState({ loading: isLoading, pulseIds })
+  // Clicking it opens the club whose next event is soonest. Only published events reach `next_event` (the API and
+  // lib/events.js drop pending_review ones), and the guard below repeats that check so a pending event can never lead here.
+  const openSoonestEvent = useCallback(() => {
+    const now = Date.now()
+    let best = null
+    for (const c of clubs) {
+      const ev = c.next_event
+      if (!ev || typeof ev !== 'object' || (ev.status != null && ev.status !== 'published')) continue
+      const t = Date.parse(ev.start)
+      if (Number.isNaN(t) || t < now) continue
+      if (!best || t < best.t) best = { t, id: c.id }
+    }
+    if (!best) return
+    setSelectedId(best.id)
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    cardFor(best.id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
+  }, [clubs])
+
   if (err) {
     return (
       <div className="mx-auto flex min-h-svh max-w-md flex-col items-center justify-center gap-6 px-6 text-center">
@@ -208,7 +238,10 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
 
   return (
     <div
-      className="mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh"
+      className={cn(
+        'mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh',
+        SHOW_MASCOT && 'max-lg:pb-28', // room under the content for the mascot
+      )}
       aria-busy={isLoading}
     >
       <div className="relative flex items-center justify-between gap-4">
@@ -286,11 +319,19 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
             rank={selectedIndex + 1}
             panel={panel}
             onClose={closePanel}
+            reserveMascot={SHOW_MASCOT}
           />
         </div>
       )}
 
       {SimulateDrop && !isLoading && <SimulateDrop clubs={matched} onDrop={inject} />}
+
+      {/* Bottom-right, in the strip reserved under the graph. Hidden while the club panel is open and under 640px. */}
+      {SHOW_MASCOT && !selectedClub && !err && (
+        <div className="fixed right-4 bottom-4 z-20 max-sm:hidden">
+          <Mascot size={88} state={mascotState} onClick={openSoonestEvent} />
+        </div>
+      )}
 
       <ArrivalToast
         arrivals={toasts.map((t) => ({ ...t, clubName: clubName(t.clubId) }))}

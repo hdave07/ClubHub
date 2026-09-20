@@ -1,0 +1,58 @@
+/* Puffer mascot. 80% ambient: slow bob + breathing. No walking. */
+.puffer {
+  position: relative; display: block; padding: 0; border: 0; background: none;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.puffer:focus-visible { outline: 2px solid #9DB4E0; outline-offset: 6px; border-radius: 50%; }
+
+.puffer__body {
+  position: absolute; inset: 0;
+  animation: puffer-bob 5.5s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+.puffer__img, .puffer__visor {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  user-select: none; pointer-events: none;
+}
+.puffer__img--lit { opacity: 0; transition: opacity 600ms ease; }
+.puffer__img--lit.is-on { opacity: 1; }
+
+/* Contact shadow drawn on the page, not baked in */
+.puffer__shadow {
+  position: absolute; left: 30%; right: 30%; bottom: -4%; height: 7%;
+  border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.55), transparent);
+  animation: puffer-shadow 5.5s ease-in-out infinite;
+}
+
+.puffer__eyes { transition: transform 220ms cubic-bezier(.2,.7,.3,1); }
+.puffer--idle .puffer__eyes { animation: puffer-blink 6s infinite; transform-box: fill-box; transform-origin: center; }
+.puffer--sleeping .puffer__body { animation-duration: 8s; }
+.puffer__sweep { animation: puffer-sweep 1.4s linear infinite; }
+.puffer__star { transform-box: fill-box; transform-origin: center; animation: puffer-star 700ms cubic-bezier(.2,.9,.3,1.2) both; }
+
+@keyframes puffer-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-3%) scale(1.012); }   /* breathing */
+}
+@keyframes puffer-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  50%      { transform: scaleX(.88); opacity: .7; }
+}
+@keyframes puffer-blink {
+  0%, 96%, 100% { opacity: 1; }
+  97.5%         { opacity: .05; }
+}
+@keyframes puffer-sweep {
+  from { transform: translateX(0); }
+  to   { transform: translateX(391px); }   /* visor width + sweep width, in viewBox units */
+}
+@keyframes puffer-star {
+  from { transform: scale(.2) rotate(-45deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puffer__body, .puffer__shadow, .puffer__sweep, .puffer__star,
+  .puffer--idle .puffer__eyes { animation: none; }
+  .puffer__eyes, .puffer__img--lit { transition: none; }
+}
