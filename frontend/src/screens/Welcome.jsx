@@ -9,7 +9,7 @@ const STARS = [
   [19, 40], [47, 8], [84, 60], [61, 90],
 ]
 
-export default function Welcome({ onExplore, onSkip }) {
+export default function Welcome({ onExplore }) {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 text-center">
       <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -38,9 +38,6 @@ export default function Welcome({ onExplore, onSkip }) {
       <div className="relative mt-8 flex flex-col items-center gap-3">
         <Button size="lg" onClick={onExplore}>
           Explore →
-        </Button>
-        <Button variant="link" onClick={onSkip}>
-          Just look around
         </Button>
       </div>
     </div>

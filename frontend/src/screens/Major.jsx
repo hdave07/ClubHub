@@ -2,10 +2,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import majors from '@/data/majors.json'
 
-export default function Major({ major, onChange, onNext, onSkip }) {
+// Every student answers this one: Next stays disabled until something is entered.
+export default function Major({ major, onChange, onNext }) {
+  const filled = major.trim().length > 0
+
   function handleSubmit(e) {
     e.preventDefault() // Enter moves to the next step
-    onNext()
+    if (filled) onNext()
   }
 
   return (
@@ -20,6 +23,7 @@ export default function Major({ major, onChange, onNext, onSkip }) {
           placeholder="e.g. Economics"
           className="dark:bg-card" // solid, so the background particles do not run through the text
           aria-label="Your major"
+          aria-required="true"
         />
         <datalist id="majors">
           {majors.map((m) => (
@@ -27,9 +31,8 @@ export default function Major({ major, onChange, onNext, onSkip }) {
           ))}
         </datalist>
         <div className="flex items-center gap-3">
-          <Button type="submit">Next</Button>
-          <Button type="button" variant="ghost" onClick={onSkip}>
-            Skip this
+          <Button type="submit" disabled={!filled}>
+            Next
           </Button>
         </div>
       </form>

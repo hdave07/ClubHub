@@ -85,7 +85,7 @@ function GraphPanel({
   )
 }
 
-export default function Constellation({ data, loading, error, retry, onEdit, skipped, onTellUs }) {
+export default function Constellation({ data, loading, error, retry, onEdit }) {
   const [selectedId, setSelectedId] = useState(null)
   // Hover is transient, selection is sticky: the graph and the cards show the hover while it lasts, then fall back
   // to the selection. Hover never opens the club panel; only a click does.
@@ -250,12 +250,6 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
             />
           ))}
         </div>
-      )}
-
-      {skipped && !isLoading && (
-        <Button variant="link" className="mt-2 self-start px-0" onClick={onTellUs}>
-          ✦ Tell us what you want for better matches
-        </Button>
       )}
 
       {empty ? (

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { SKIP_BLURB, buildBlurb } from '@/lib/blurb'
+import { buildBlurb } from '@/lib/blurb'
 import { motion } from '@/lib/theme'
 import { useRecommend } from '@/lib/useRecommend'
 import Blurb from '@/screens/Blurb'
@@ -32,7 +32,6 @@ function loadInput() {
 function App() {
   const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'welcome') // welcome | major | blurb | results
   const [input, setInput] = useState(loadInput)
-  const [skipped, setSkipped] = useState(false)
   // Reduced motion: no animated background (Welcome keeps its static stars).
   const [animate] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   const { data, loading, error, run, retry } = useRecommend()
@@ -46,14 +45,7 @@ function App() {
   }, [input])
 
   function launch(text) {
-    setSkipped(false)
     run(buildBlurb(input.major, text))
-    setStep('results')
-  }
-
-  function lookAround() {
-    setSkipped(true)
-    run(SKIP_BLURB)
     setStep('results')
   }
 
@@ -71,16 +63,12 @@ function App() {
         className="relative z-10 animate-in fade-in"
         style={{ animationDuration: `${motion.base}ms` }}
       >
-        {step === 'welcome' && <Welcome onExplore={() => setStep('major')} onSkip={lookAround} />}
+        {step === 'welcome' && <Welcome onExplore={() => setStep('major')} />}
         {step === 'major' && (
           <Major
             major={input.major}
             onChange={(major) => setInput((i) => ({ ...i, major }))}
             onNext={() => setStep('blurb')}
-            onSkip={() => {
-              setInput((i) => ({ ...i, major: '' }))
-              setStep('blurb')
-            }}
           />
         )}
         {step === 'blurb' && (
@@ -96,9 +84,7 @@ function App() {
             loading={loading}
             error={error}
             retry={retry}
-            skipped={skipped}
             onEdit={() => setStep('blurb')}
-            onTellUs={() => setStep('major')}
           />
         )}
       </div>
