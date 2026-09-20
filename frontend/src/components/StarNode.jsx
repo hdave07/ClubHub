@@ -65,7 +65,8 @@ function Label({ side = 'bottom', color, weight = 400, title, hidden = false, ch
   )
 }
 
-const fade = (dim) => ({ opacity: dim ? 0.35 : 1, transition: `opacity ${motion.base}ms` })
+// Nodes outside the hovered path recede to 25% (edges use the same value).
+const fade = (dim) => ({ opacity: dim ? 0.25 : 1, transition: `opacity ${motion.fast}ms` })
 
 function activateOnKey(e, onActivate) {
   if (e.key === 'Enter' || e.key === ' ') {
@@ -115,8 +116,8 @@ export function OutcomeNode({ data }) {
           height: size,
           borderRadius: '50%',
           background: sky.surface, // hides the edge line behind the ring
-          border: `1.5px solid ${data.lit ? sky.heading : sky.textMuted}`,
-          transition: `border-color ${motion.base}ms`,
+          border: `1.5px solid ${data.lit ? gold.color : sky.textMuted}`,
+          transition: `border-color ${motion.fast}ms`,
         }}
       />
       <Label side={data.side} color={data.lit ? sky.heading : sky.textMuted} hidden={data.labelHidden}>
@@ -143,8 +144,7 @@ export function ClubNode({ data }) {
         data.onSelect()
       }}
       onKeyDown={(e) => activateOnKey(e, data.onSelect)}
-      onMouseEnter={() => data.onHover(true)}
-      onMouseLeave={() => data.onHover(false)}
+      // mouse hover is handled by React Flow (onNodeMouseEnter/Leave in StarGraph); keyboard focus lives here
       onFocus={() => data.onHover(true)}
       onBlur={() => data.onHover(false)}
       className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -178,7 +178,9 @@ export function EventNode({ data }) {
   const [active, setActive] = useState(false)
   const { size } = nodeStyles.event
   const lit = data.lit || active
-  const set = (on) => {
+  // Mouse hover on the dot only shows its own label (the club highlight comes from React Flow in StarGraph);
+  // keyboard focus also lights the club.
+  const focusSet = (on) => {
     setActive(on)
     data.onHover(on)
   }
@@ -192,10 +194,10 @@ export function EventNode({ data }) {
         data.onSelect()
       }}
       onKeyDown={(e) => activateOnKey(e, data.onSelect)}
-      onMouseEnter={() => set(true)}
-      onMouseLeave={() => set(false)}
-      onFocus={() => set(true)}
-      onBlur={() => set(false)}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => focusSet(true)}
+      onBlur={() => focusSet(false)}
       className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
       style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}
     >
