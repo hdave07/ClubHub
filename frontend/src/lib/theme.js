@@ -70,8 +70,8 @@ export const button = {
 // React Flow node sizes in px. The layout centers nodes using these.
 export const nodeStyles = {
   you: { size: 28 },
-  outcome: { size: 12 },
-  club: { size: 9 },
+  outcome: { size: 20 }, // the most prominent node after You
+  club: { size: 7 }, // supporting
   event: { size: 5 }, // quietest layer
 }
 

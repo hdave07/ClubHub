@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { HOVER_SCALE, TRANSITION_MS } from '@/lib/graphTuning'
 import { useNodeView } from '@/lib/graphView'
-import { accent, motion, nodeStyles, sky } from '@/lib/theme'
+import { accent, motion, nodeStyles, outcomeColor, sky } from '@/lib/theme'
 import { outcomeLabel } from '@/lib/labels'
 
 // Handles exist only so edges have an anchor. They sit at the node center and are never visible.
@@ -42,15 +42,15 @@ const SIDES = {
   bottomEnd: { top: '100%', right: -2, marginTop: 8, textAlign: 'right' },
 }
 
-function Label({ side = 'bottom', color, weight = 400, title, hidden = false, children }) {
+function Label({ side = 'bottom', color, weight = 400, size = 12.5, maxWidth = 132, title, hidden = false, children }) {
   return (
     <span
       title={title}
       style={{
         position: 'absolute',
         width: 'max-content',
-        maxWidth: 132,
-        fontSize: 12.5,
+        maxWidth,
+        fontSize: size,
         lineHeight: 1.25,
         fontWeight: weight,
         color,
@@ -111,6 +111,7 @@ export function YouNode({ data }) {
 export function OutcomeNode({ data }) {
   const { size } = nodeStyles.outcome
   const v = useNodeView(data.nodeId, 'outcome')
+  const { color, nodeTint } = outcomeColor(data.key)
   return (
     <div style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}>
       <Handles />
@@ -120,13 +121,13 @@ export function OutcomeNode({ data }) {
           width: size,
           height: size,
           borderRadius: '50%',
-          background: sky.surface, // hides the edge line behind the ring
-          border: `1.5px solid ${v.lit ? sky.heading : sky.textMuted}`,
+          background: nodeTint, // also hides the edge line behind the ring
+          border: `2px solid ${color}`,
           transform: v.direct ? `scale(${HOVER_SCALE})` : 'none',
-          transition: `border-color ${TRANSITION_MS}ms ${EASE}, transform ${TRANSITION_MS}ms ${EASE}`,
+          transition: `transform ${TRANSITION_MS}ms ${EASE}`,
         }}
       />
-      <Label side={data.side} color={v.lit ? sky.heading : sky.textMuted} hidden={v.labelHidden}>
+      <Label side={data.side} color={color} size={15} weight={500} maxWidth={200} hidden={v.labelHidden}>
         {outcomeLabel(data.key)}
       </Label>
     </div>
@@ -158,8 +159,8 @@ export function ClubNode({ data }) {
       style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}
     >
       <Handles />
-      {/* larger invisible hit area: the dot itself is only 9px */}
-      <span aria-hidden style={{ position: 'absolute', inset: -8, borderRadius: '50%' }} />
+      {/* larger invisible hit area: the dot itself is only 7px */}
+      <span aria-hidden style={{ position: 'absolute', inset: -9, borderRadius: '50%' }} />
       <div
         style={{
           width: size,
@@ -178,7 +179,7 @@ export function ClubNode({ data }) {
           transition: `transform ${TRANSITION_MS}ms ${EASE}, background-color ${TRANSITION_MS}ms ${EASE}, opacity ${TRANSITION_MS}ms ${EASE}, box-shadow ${TRANSITION_MS}ms ${EASE}`,
         }}
       />
-      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name} hidden={v.labelHidden}>
+      <Label side={data.side} color={emphasized ? sky.heading : sky.textMuted} weight={emphasized ? 600 : 400} title={name} hidden={v.labelHidden}>
         {truncate(name, 34)}
       </Label>
     </div>

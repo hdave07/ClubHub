@@ -10,7 +10,7 @@ import { GraphViewContext } from '@/lib/graphView'
 import { useStarPhysics } from '@/lib/useStarPhysics'
 import { computeHighlight } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
-import { clubBrightness, motion, nodeStyles, sky } from '@/lib/theme'
+import { clubBrightness, motion, nodeStyles, outcomeColor, sky } from '@/lib/theme'
 
 const nodeTypes = { you: YouNode, outcome: OutcomeNode, club: ClubNode, event: EventNode }
 const edgeTypes = { star: StarEdge }
@@ -19,6 +19,22 @@ const NO_PULSE = new Set()
 // Edges are hairlines: nearly invisible until a club is focused, when its path turns brighter.
 const EDGE = `${sky.heading}1A`
 const EDGE_EVENT = `${sky.heading}12` // event edges are the faintest
+
+/**
+ * How an edge looks. You -> outcome: the outcome's color, solid, 1.5px. Outcome -> club: the same color at 35%, 1px,
+ * drawn at full strength when lit. Anything else (club -> event, you -> club) stays neutral and quiet.
+ * @param {{ source: string, target: string }} e
+ */
+function edgeLook(e) {
+  const key = e.source.startsWith('outcome:') ? e.source.slice(8) : e.target.startsWith('outcome:') ? e.target.slice(8) : null
+  if (key == null) {
+    const quiet = e.target.startsWith('event:')
+    return { base: quiet ? EDGE_EVENT : EDGE, baseWidth: 1, lit: sky.textMuted, litWidth: 1.25 }
+  }
+  const { color } = outcomeColor(key)
+  if (e.source === 'you') return { base: color, baseWidth: 1.5, lit: color, litWidth: 1.5 }
+  return { base: `${color}59`, baseWidth: 1, lit: color, litWidth: 1.5 }
+}
 
 const BASE_PADDING = { top: 56, bottom: 56, left: 140, right: 140 } // room for the labels beside the outer nodes
 const DESKTOP = '(min-width: 1024px)'
@@ -155,7 +171,7 @@ export default function StarGraph({
           type: 'star',
           focusable: false,
           selectable: false,
-          data: { base: e.target.startsWith('event:') ? EDGE_EVENT : EDGE, instant: reducedMotion },
+          data: { ...edgeLook(e), instant: reducedMotion },
         }
       }),
     [graph, reducedMotion], // not `active`: a changing edge list makes React Flow replace every edge element
