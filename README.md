@@ -1,21 +1,33 @@
 # ClubHub
 
-**Find the clubs that actually fit you at U of T — as a map, not a list — and watch it
-update live the moment a club posts something new.**
+**Find the clubs that actually fit you — as a map, not a list — and watch it update live
+the moment a club posts something new.**
 
-Built at HackMIT.
+Built at HackMIT. The pilot deployment uses University of Toronto data; the problem is
+the same on almost every campus.
 
 ## The problem
 
-University of Toronto's official club portal (SOP) lists ~1,250 groups behind a keyword
-search across 17 broad categories. It answers "does a club named X exist?" — not "which
-of these 1,250 things should *I* actually join?" And it's stale: at the time this was
-built, SOP's own events API returned **9 upcoming events for the entire campus.** Real
-event info lives on Instagram posters, PDFs pinned to hallway corkboards, and word of
-mouth — not in any structured system a new student can search.
+Universities have an club directory, a student-union site,
+a registrar page, or something to answer one question well: *"does a club named
+X exist?"* They do not answer the question a new student actually has: *"which of these
+hundreds of groups should **I** join?"*
 
-Club fairs are a firehose. Most students end up joining whatever their friends already
-did.
+The gap shows up in three places:
+
+1. **Discovery is keyword search and broad categories.** A first-year who wants
+   internships, friends, and a low time commitment has to guess which of 17 interest
+   areas to click through — and still read hundreds of blurbs by hand.
+2. **Event listings are sparse and stale.** Official portals often carry a tiny fraction
+   of what is actually happening. Real event info lives on Instagram posters, PDFs on
+   hallway corkboards, Linktree pages, and word of mouth — not in any structured system
+   a new student can search.
+3. **Club fairs are a firehose.** Most students end up joining whatever their friends
+   already did.
+
+ClubHub treats this as a campus-wide data problem, not a single-school quirk. The
+architecture is source-agnostic: pull what the official portal exposes, enrich it with
+AI, and layer in unstructured updates (posters, PDFs) as they appear.
 
 ## What ClubHub does
 
@@ -29,7 +41,7 @@ clubs, ranked, each with one sentence tying something concrete in the club's own
 description to something you actually said. No generic hype; a club that can only get a
 generic sentence written about it doesn't make the list.
 
-Under the hood: Voyage embeddings narrow ~250 enriched clubs down to the ~20 nearest by
+Under the hood: Voyage embeddings narrow the enriched catalog down to the ~20 nearest by
 meaning, then Claude (Sonnet) reads the candidates against your blurb, drops the ones
 that don't genuinely fit, and writes the "why."
 
@@ -37,7 +49,7 @@ that don't genuinely fit, and writes the "why."
 
 Results render as a personal star graph — **you → your outcomes → clubs → their next
 events** — instead of a list of cards. It's deliberately small (15–25 nodes, never the
-full 1,250-club catalog) and it reacts: hovering a club or an outcome lights the exact
+full catalog hairball) and it reacts: hovering a club or an outcome lights the exact
 path that explains it, stars carry a soft cursor-reactive physics, and a club's own
 detail panel opens beside the graph instead of replacing it.
 
@@ -58,12 +70,12 @@ at, and never a fabricated date on the live feed.
 
 ## Why it's built this way
 
-- **The graph stays small on purpose.** A force-directed hairball of 1,250 clubs is a
-  worse UI than a search box. The personal graph earns the "creative visualization" only
-  because it's scoped to *your* results.
-- **Two ingestion paths write to the same tables, honestly.** A synced SOP listing and a
-  Dropbox-extracted poster both become `Club`/`Event` rows, tagged by `source`, so the
-  app never has to pretend one is more real than the other.
+- **The graph stays small on purpose.** A force-directed hairball of every club on
+  campus is a worse UI than a search box. The personal graph earns the "creative
+  visualization" only because it's scoped to *your* results.
+- **Two ingestion paths write to the same tables, honestly.** A synced official listing
+  and a Dropbox-extracted poster both become `Club`/`Event` rows, tagged by `source`, so
+  the app never has to pretend one is more real than the other.
 - **A wrong date is worse than no date.** Auto-publish requires a title, a resolved
   start, a time of day, *and* model confidence — anything short of that goes to a human
   for one quick confirmation instead of guessing.
@@ -71,6 +83,10 @@ at, and never a fabricated date on the live feed.
   produced 148 near-duplicate tags across 25 clubs ("academic" / "academic inquiry" /
   "academic support"). A fixed 51-term enum made tags reusable and made filtering in Full
   Directory possible at all.
+- **New campuses are adapters, not rewrites.** Official portal sync, club-site event
+  scrapers, and Dropbox ingestion all land in the same tables through a shared adapter
+  contract — see `.cursor/skills/scraping-club-events/` and
+  `backend/app/services/event_sources/`.
 
 The full reasoning — and the incidents that produced each rule — is in
 [`DECISIONS.md`](./DECISIONS.md). The condensed, code-facing spec (data model,
@@ -80,19 +96,22 @@ brainstorm is [`central-hub-for-clubs.md`](./central-hub-for-clubs.md).
 ## Architecture
 
 ```
-SOP Groups API ──┐                    ┌── enrichment (Haiku) ── embeddings (Voyage) ── ChromaDB
-                  ├─→ sop_sync ────────┤
-                  │   (dedupe, sample) └────────────────────────────────────────┐
-                  │                                                             ▼
-Dropbox Inbox ────┴─→ dropbox_watcher ─→ extraction (Sonnet) ─→ matcher ─→  SQLite (Club, Event)
-   (or in-app upload)                    vision / PDF input     (fuzzy,        │
-                                          confidence-gated       never guesses) │
-                                          auto-publish rule                    │
-                                                                                ▼
-                                                        FastAPI: /recommend  /clubs  /events  /upload
-                                                                                │
-                                                                                ▼
-                                                React + @xyflow/react: the star graph, Full Directory
+Official club portal API ──┐                    ┌── enrichment (Haiku) ── embeddings (Voyage) ── ChromaDB
+  (e.g. SOP at UofT)        ├─→ portal sync ────┤
+                            │   (dedupe, sample) └────────────────────────────────────────┐
+                            │                                                             ▼
+Dropbox Inbox ──────────────┴─→ dropbox_watcher ─→ extraction (Sonnet) ─→ matcher ─→  SQLite (Club, Event)
+   (or in-app upload)                            vision / PDF input     (fuzzy,        │
+                                                  confidence-gated       never guesses) │
+                                                  auto-publish rule                    │
+                                                                                        ▼
+                                                            FastAPI: /recommend  /clubs  /events  /upload
+                                                                                        │
+                                                                                        ▼
+                                                    React + @xyflow/react: the star graph, Full Directory
+
+Club / campus event sites ──→ event-source adapters (JSON endpoints) ──→ same runner ──→ SQLite
+  (skill: scraping-club-events)
 ```
 
 ## Tech stack
@@ -127,12 +146,16 @@ Needs Node ≥ 20.19 (or ≥ 22.12) — the graph's build tooling (`vite`/`rolld
 install its native binding on an older Node and fails with a confusing "optional
 dependencies" error. `node --version` first if `npm run dev` won't start.
 
-**Data**: `backend/data/campus_compass.db` is checked into git with 250 clubs already
-synced and enriched. `backend/data/chroma/` (the vector index) is *not* checked in — if
-`/recommend` comes back empty or thin, index it once:
+**Data**: `backend/data/campus_compass.db` is checked into git with a sample catalog
+already synced and enriched for the UofT pilot. `backend/data/chroma/` (the vector
+index) is *not* checked in — if `/recommend` comes back empty or thin, index it once:
 ```bash
 cd backend && python -m app.services.enrichment_batch --index-only --limit 250
 ```
+
+To point ClubHub at another school, swap the portal sync config and add event-source
+adapters for that campus's calendars — the match, graph, and Dropbox flows stay the
+same.
 
 ## Project layout
 
@@ -140,7 +163,7 @@ cd backend && python -m app.services.enrichment_batch --index-only --limit 250
 frontend/   React + Vite. src/screens for pages, src/components for the graph/cards/panels,
             src/lib for the API client, filtering, physics and layout math.
 backend/    FastAPI + SQLModel. app/routers for the four endpoints, app/services for
-            everything that talks to SOP, Dropbox, Claude or Voyage.
+            portal sync, Dropbox, Claude, Voyage, and pluggable event-source adapters.
 ```
 
 ## Status
@@ -148,9 +171,9 @@ backend/    FastAPI + SQLModel. app/routers for the four endpoints, app/services
 Both the backend and the core frontend are built and running against real data — this
 isn't scaffolding. Concretely:
 
-- **250 clubs** synced from UofT's SOP portal (sampled proportionally across interest
-  areas from 897 unique St. George clubs), **100% enriched** (summary, outcomes, tags,
-  commitment) and embedded for search.
+- **250 clubs** in the pilot catalog (sampled proportionally across interest areas from
+  UofT's official portal), **100% enriched** (summary, outcomes, tags, commitment) and
+  embedded for search.
 - **`/recommend`** is live: vector search + Claude rerank, tested end to end against the
   real database.
 - **The constellation and Full Directory** are both built, sharing one soft-physics graph
@@ -158,6 +181,9 @@ isn't scaffolding. Concretely:
 - **The Dropbox pipeline** (watcher, extraction, fuzzy club matching, confidence-gated
   publish, human-confirm for ambiguous dates) is built and has been exercised against
   real uploads, including the "couldn't read this clearly" confirmation path.
+- **Event-source adapters** are wired through a shared runner with dedupe, contact
+  scrubbing, and publish gates — the SOP events API is the first adapter; the scraping
+  skill documents how to add club-site and campus-calendar sources.
 
 **Deliberately out of scope for this build**, tracked as roadmap in
 [`central-hub-for-clubs.md`](./central-hub-for-clubs.md): accounts/auth, push
