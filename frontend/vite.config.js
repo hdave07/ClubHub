@@ -13,10 +13,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Remove if backend adds an /api prefix.
+      // No rewrite: backend/app/main.py mounts every router under /api itself,
+      // so /api/recommend must reach it as /api/recommend -- this keeps the
+      // same frontend URLs working in production, where there's no Vite proxy.
       '/api': {
         target: 'http://localhost:8000',
-        rewrite: (p) => p.replace(/^\/api/, ''),
       },
     },
   },
