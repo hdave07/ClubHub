@@ -224,7 +224,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
         <div className="flex gap-3">
           <Button onClick={retry}>Retry</Button>
           <Button variant="ghost" onClick={onEdit}>
-            Edit
+            Remap your constellation
           </Button>
         </div>
         {import.meta.env.DEV && (
@@ -244,13 +244,13 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
       )}
       aria-busy={isLoading}
     >
-      <div className="relative flex items-center justify-between gap-4">
+      <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
           {!isLoading && !empty && <CardGuide />}
         </div>
         {!isLoading && !empty && (
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
@@ -261,7 +261,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
               Add an event
             </Button>
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onEdit}>
-              Edit
+              Remap your constellation
             </Button>
           </div>
         )}
@@ -290,7 +290,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
           <p className="text-muted-foreground">
             No stars matched yet. Try describing what you want a little differently.
           </p>
-          <Button onClick={onEdit}>Edit</Button>
+          <Button onClick={onEdit}>Remap your constellation</Button>
         </div>
       ) : (
         <div className="mt-8 flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
