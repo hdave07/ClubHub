@@ -21,7 +21,7 @@ export default function Welcome({ onExplore }) {
 
       {/* Puffer stands on a hairline "floor" at the bottom of the page. Hidden on short screens, where it would
           run into the title. Clicking it does what Explore does. */}
-      <div className="absolute inset-x-0 bottom-8 flex flex-col items-center [@media(max-height:680px)]:hidden">
+      <div className="absolute inset-x-0 bottom-14 flex flex-col items-center [@media(max-height:680px)]:hidden">
         <Mascot size={88} onClick={onExplore} />
         <span aria-hidden className="h-px w-[min(36rem,90vw)] bg-gradient-to-r from-transparent via-border to-transparent" />
       </div>
