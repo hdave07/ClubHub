@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { buildBlurb } from '@/lib/blurb'
 import { motion } from '@/lib/theme'
 import { useRecommend } from '@/lib/useRecommend'
@@ -21,35 +21,22 @@ const PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.
 // tab's own graph. No router: one query param, same pattern as ?previewData above.
 const VIEW = new URLSearchParams(window.location.search).get('view')
 
-const STORAGE_KEY = 'campus-compass:input'
-const EMPTY_INPUT = { major: '', blurb_text: '' }
-
-function loadInput() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (saved && typeof saved.major === 'string' && typeof saved.blurb_text === 'string') {
-      return { major: saved.major, blurb_text: saved.blurb_text }
-    }
-  } catch {
-    // storage unavailable or corrupt: start empty
-  }
-  return EMPTY_INPUT
+// The answers (major, blurb) live only in this tab's memory: every visit starts with empty boxes. They used to be
+// saved in localStorage and restored, so this drops that old key once (no other site data is touched).
+const LEGACY_STORAGE_KEY = 'campus-compass:input'
+try {
+  localStorage.removeItem(LEGACY_STORAGE_KEY)
+} catch {
+  // storage unavailable: nothing to clear
 }
+const EMPTY_INPUT = { major: '', blurb_text: '' }
 
 function MainFlow() {
   const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'campus') // campus | welcome | major | blurb | results
-  const [input, setInput] = useState(loadInput)
+  const [input, setInput] = useState(EMPTY_INPUT)
   // Reduced motion: no animated background (Welcome keeps its static stars).
   const [animate] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   const { data, loading, error, run, retry } = useRecommend()
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(input))
-    } catch {
-      // storage unavailable: the app still works from state
-    }
-  }, [input])
 
   function launch(text) {
     run(buildBlurb(input.major, text))
