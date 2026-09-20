@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AddEventPanel from '@/components/AddEventPanel'
 import ArrivalToast from '@/components/ArrivalToast'
+import CardGuide from '@/components/CardGuide'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
 import StarField from '@/components/StarField'
@@ -164,7 +165,10 @@ export default function Constellation({ data, loading, error, retry, onEdit, ski
       aria-busy={isLoading}
     >
       <div className="relative flex items-center justify-between gap-4">
-        <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl md:text-3xl">{isLoading ? 'Mapping your constellation…' : 'Your constellation'}</h2>
+          {!isLoading && !empty && <CardGuide />}
+        </div>
         {!isLoading && !empty && (
           <div className="flex items-center gap-1">
             <Button
