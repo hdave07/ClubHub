@@ -1,13 +1,18 @@
 // Turns a raw GET /clubs/:id response into what the club panel may show.
 // Everything is whitelisted field by field (main plan rules):
-// - privacy: no organizer or contact fields, no email/phone links, and description_raw is never passed through
+// - privacy: no EVENT organizer/contact fields, and description_raw is never passed through
+// - a club's own contact email IS shown, on purpose (DECISIONS.md D4) -- SOP publishes it as the
+//   club's official contact, and "how do I reach this club" is the point of the product. It's a
+//   different data path from event-organizer contact info, which this file never receives at all.
 // - safety: only published events that have a title and a valid start
 // Other fields that come back (confidence, status, sop ids) are dropped here.
 
 import { timeOf, toUtcIso } from './format'
 
 export const UPCOMING_LIMIT = 5
-const CONTACT_KEY = /e-?mail|contact|phone|organi[sz]er|whatsapp/i
+// Guards event/meeting-info text and stray link keys, never the club's own `links.email`.
+const CONTACT_KEY = /contact|phone|organi[sz]er|whatsapp/i
+const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** @param {unknown} v */
 export function isHttpUrl(v) {
@@ -100,24 +105,31 @@ const humanize = (key) => {
 }
 
 /**
- * The SOP listing first, then the club's own links. Web links only; contact-like keys are skipped.
+ * The SOP listing first, then the club's own links, then its contact email last.
+ * Web links plus one mailto: for `links.email` (see D4 above); other contact-like keys are skipped.
  * @param {any} club raw backend Club row
- * @returns {{ label: string, href: string }[]}
+ * @returns {{ label: string, href: string, kind: 'link' | 'email' }[]}
  */
 export function clubLinks(club) {
   const out = []
   const seen = new Set()
-  const add = (label, href) => {
-    if (!isHttpUrl(href) || seen.has(href)) return
+  const add = (label, href, kind = 'link') => {
+    if (!href || seen.has(href)) return
     seen.add(href)
-    out.push({ label, href })
+    out.push({ label, href, kind })
   }
-  add('SOP listing', club?.sop_url)
+  add('SOP listing', isHttpUrl(club?.sop_url) ? club.sop_url : null)
   const links = club?.links && typeof club.links === 'object' && !Array.isArray(club.links) ? club.links : {}
-  for (const [key, href] of Object.entries(links)) {
+  let email = null
+  for (const [key, value] of Object.entries(links)) {
+    if (key === 'email') {
+      if (typeof value === 'string' && EMAIL_ADDRESS.test(value.trim())) email = value.trim()
+      continue
+    }
     if (CONTACT_KEY.test(key)) continue
-    add(humanize(key), href)
+    if (isHttpUrl(value)) add(humanize(key), value)
   }
+  if (email) add('Email', `mailto:${email}`, 'email')
   return out
 }
 

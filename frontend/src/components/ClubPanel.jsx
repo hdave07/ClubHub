@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef } from 'react'
-import { ArrowUpRight, Info, X } from 'lucide-react'
+import { ArrowUpRight, Info, Mail, X } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -25,12 +25,12 @@ function Section({ title, children }) {
   )
 }
 
-function ExternalLink({ href, children, className }) {
+function ExternalLink({ href, children, className, kind = 'link' }) {
+  const isEmail = kind === 'email' || href.startsWith('mailto:')
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
       className={cn(
         'inline-flex items-center gap-0.5 rounded-sm text-sm text-foreground underline-offset-2 outline-none',
         'hover:text-gold hover:underline focus-visible:ring-2 focus-visible:ring-ring',
@@ -38,7 +38,11 @@ function ExternalLink({ href, children, className }) {
       )}
     >
       {children}
-      <ArrowUpRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      {isEmail ? (
+        <Mail aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      ) : (
+        <ArrowUpRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      )}
     </a>
   )
 }
@@ -194,7 +198,7 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
               <ul className="flex flex-col gap-1.5">
                 {links.map((l) => (
                   <li key={l.href}>
-                    <ExternalLink href={l.href}>{l.label}</ExternalLink>
+                    <ExternalLink href={l.href} kind={l.kind}>{l.label}</ExternalLink>
                   </li>
                 ))}
               </ul>
