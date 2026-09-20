@@ -2,8 +2,8 @@ import { formatEventTime } from '@/lib/format'
 import { OUTCOME_LABELS, normalizeOutcome } from '@/types'
 
 export const MAX_NODES = 25
+export const MAX_CLUBS = 8
 const MAX_OUTCOMES = 4
-const MAX_CLUBS = 8
 
 /**
  * GraphNode from types.js plus the data the star nodes need.
@@ -68,6 +68,13 @@ function buildFromClubs(response) {
   const clubs = (response?.clubs ?? []).slice(0, MAX_CLUBS)
   let keys = [...new Set((response?.outcomes ?? []).map(normalizeOutcome).filter(Boolean))]
   if (!keys.length) keys = mostCommonOutcomes(clubs)
+  // A manually added club (lib/myClubs.js) brings its own outcome into the graph even when the reranker never
+  // picked it -- "added with a specific skill, it should show up too" -- as long as there's room under the cap.
+  for (const club of clubs) {
+    if (!club._addedByUser) continue
+    const primary = outcomeKeys(club)[0]
+    if (primary && !keys.includes(primary) && keys.length < MAX_OUTCOMES) keys.push(primary)
+  }
   keys = keys.slice(0, MAX_OUTCOMES)
   const keySet = new Set(keys)
 
@@ -190,6 +197,17 @@ function capGraph({ nodes, edges }) {
 }
 
 /**
+ * An outcome node a club removal (or the reranker's own picks never landing a club) left with no edges: drop
+ * it, so "your map" never shows a skill nothing on it actually offers.
+ */
+function pruneEmptyOutcomes({ nodes, edges }) {
+  const degree = new Set(edges.filter((e) => e.source.startsWith('outcome:')).map((e) => e.source))
+  const drop = new Set(nodes.filter((n) => n.type === 'outcome' && !degree.has(n.id)).map((n) => n.id))
+  if (!drop.size) return { nodes, edges }
+  return { nodes: nodes.filter((n) => !drop.has(n.id)), edges: edges.filter((e) => !drop.has(e.source) && !drop.has(e.target)) }
+}
+
+/**
  * Response -> { nodes, edges } for the personal graph (about 15-25 nodes, never more than 25).
  * Clubs may carry live arrivals (lib/events.js applyArrivals); each one gets a star.
  * @param {{ outcomes?: string[], clubs?: object[], graph?: { nodes: object[], edges: object[] } | null }} response
@@ -197,12 +215,14 @@ function capGraph({ nodes, edges }) {
  */
 export function buildGraph(response) {
   const g = response?.graph
+  let built = null
   if (g?.nodes?.length) {
     const normalized = normalizeBackendGraph(g, response)
     // A backend graph with no usable club nodes falls back to the club list.
-    if (normalized.nodes.some((n) => n.type === 'club')) return capGraph(addLiveEventStars(normalized, response?.clubs ?? []))
+    if (normalized.nodes.some((n) => n.type === 'club')) built = normalized
   }
-  return capGraph(addLiveEventStars(buildFromClubs(response), response?.clubs ?? []))
+  if (!built) built = buildFromClubs(response)
+  return pruneEmptyOutcomes(capGraph(addLiveEventStars(built, response?.clubs ?? [])))
 }
 
 /**

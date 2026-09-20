@@ -2,6 +2,7 @@ import { CalendarDays, CalendarX2, Info } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import OutcomePill from '@/components/OutcomePill'
 import PosterInvite from '@/components/PosterInvite'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatEventTime } from '@/lib/format'
 import { DIMMED_OPACITY, TRANSITION_MS } from '@/lib/graphTuning'
@@ -156,6 +157,7 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
           <h3 className="min-w-0 flex-1 truncate text-[1.0625rem] leading-tight" title={club.name}>
             {club.name}
           </h3>
+          {club._addedByUser && <Badge variant="secondary" className="shrink-0">Added by you</Badge>}
           <Commitment value={club.commitment} />
         </div>
         {club.why_it_fits && (

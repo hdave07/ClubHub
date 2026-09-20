@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
-import CardGuide from '@/components/CardGuide'
+import { Check, Plus, X } from 'lucide-react'
 import ClubList from '@/components/ClubList'
 import ClubPanel from '@/components/ClubPanel'
 import DirectoryFilters from '@/components/DirectoryFilters'
@@ -8,9 +7,11 @@ import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MAX_CLUBS } from '@/lib/buildGraph'
 import { emptyFilters, filterClubs } from '@/lib/directory'
 import { clubIdsUnderOutcome } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
+import { useMyClubs } from '@/lib/myClubs'
 import { useAllClubs } from '@/lib/useAllClubs'
 import { useClub } from '@/lib/useClub'
 import { useRecommend } from '@/lib/useRecommend'
@@ -113,6 +114,19 @@ export default function Directory() {
 
   const panel = useClub(selectedClub ? String(selectedClub.id) : null)
 
+  // "Add to your map": this tab can't see the main tab's match list, only the shared store (lib/myClubs.js) and
+  // the map size the main tab last reported into it, which is what caps adding here.
+  const { isAdded, addClub, mapSize } = useMyClubs()
+  const atCap = mapSize >= MAX_CLUBS
+  const selectedAdded = selectedClub ? isAdded(selectedClub.id) : false
+  const mapAction = selectedClub && {
+    label: selectedAdded ? 'Added to your map' : atCap ? 'Your map is full' : 'Add to your map',
+    onClick: () => addClub(selectedClub),
+    disabled: selectedAdded || atCap,
+    variant: selectedAdded ? 'secondary' : 'default',
+    icon: selectedAdded ? <Check /> : <Plus />,
+  }
+
   return (
     <div className="mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-10 lg:h-svh">
       <div className="flex flex-col gap-1">
@@ -129,10 +143,7 @@ export default function Directory() {
             ← Close and return to your constellation
           </button>
         )}
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl md:text-3xl">Full Directory</h2>
-          <CardGuide />
-        </div>
+        <h2 className="text-2xl md:text-3xl">Full Directory</h2>
       </div>
 
       <form onSubmit={onSearch} className="mt-4 flex gap-2">
@@ -231,6 +242,7 @@ export default function Directory() {
               notFound={panel.notFound}
               onRetry={panel.retry}
               onClose={closePanel}
+              mapAction={mapAction}
             />
           )}
         </div>
