@@ -75,6 +75,7 @@ export function toEventLite(ev) {
     start: toUtcIso(ev.start),
     end: validTime(ev.end) ? toUtcIso(ev.end) : null,
     location: scrubText(ev.location) || undefined,
+    description: scrubText(ev.description) || undefined,
     rsvp_url: isHttpUrl(ev.rsvp_url) ? ev.rsvp_url : null,
     source: ev.source === 'dropbox' ? 'dropbox' : 'sop',
     source_file: ev.source_file || undefined,

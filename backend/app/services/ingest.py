@@ -379,7 +379,9 @@ def _smoke_test() -> None:
 
     from app.database import engine, init_db
     from app.models import Club
+    from app.services.event_sources.base import safe_console
 
+    safe_console()
     force = "--force" in sys.argv
     init_db()
 

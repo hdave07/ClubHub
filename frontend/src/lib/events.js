@@ -1,6 +1,6 @@
 // Live events from GET /events, and how arrivals merge into what the student already sees.
 // Same display rules as the club panel (lib/club.js): published only, a title and a valid start, not over yet,
-// and every field goes through toEventLite (scrubbed title/location, web links only, no description).
+// and every field goes through toEventLite (scrubbed title/location/description, web links only).
 
 import { UPCOMING_LIMIT, toEventLite } from './club'
 import { timeOf } from './format'
