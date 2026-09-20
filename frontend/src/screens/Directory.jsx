@@ -190,6 +190,7 @@ export default function Directory() {
               hoveredId={hoveredClubId}
               hoveredOutcome={hoveredOutcome}
               onSelect={setSelectedId}
+              onSelectEvent={setSelectedId} // no event tab here yet (ClubPanel isn't given selectedEventId); an event star still opens its club
               onHover={hoverFromGraph}
               onHoverOutcome={hoverOutcome}
               panelOpen={!!selectedClub}

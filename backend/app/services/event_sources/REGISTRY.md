@@ -35,6 +35,41 @@ placeholder `Club` rows.
 
 ---
 
+## sa.utoronto.ca — investigated, not usable as one adapter
+
+- **Status:** rejected at phase 2. Not a single platform: `sa.utoronto.ca` is a
+  per-club subdomain host (`<slug>.sa.utoronto.ca`), each one its own
+  independent WordPress install (`Book & Media Studies` ->
+  `bookandmedia.sa.utoronto.ca`, `Chemistry Students' Union` ->
+  `csu.sa.utoronto.ca`, etc.) — the 15-club count in the ranking is 15 separate
+  sites sharing a hosting domain, not one calendar with 15 clubs on it.
+- **Checked 6 of the 15 subdomains** (`bookandmedia`, `csu`, `classu`, `ecegss`,
+  `mmg`, `csbsu`): every one returns a working `/wp-json/` (confirmed
+  WordPress, no WAF issue — `httpx`/`curl` both work fine, unlike SOP), but
+  **none registers an event post type or an events REST namespace.**
+  `/wp-json/wp/v2/types` on all six is just `post`/`page`/`attachment` plus
+  editor plumbing (`wp_block`, `wp_template`, …) — no `event`, `tribe_events`,
+  or `ai1ec_event`. `ecegss.sa.utoronto.ca` has a plugin literally named
+  "events-calendar" (visible in its enqueued CSS path) but it registers no REST
+  route at all (`/wp-json/` lists only `akismet`, `monsterinsights`, `oembed`,
+  `wordfence`, `wp-site-health`, `wp/v2` — no events namespace); it's a
+  front-end-only rendering plugin, no API. `csu.sa.utoronto.ca` links to an
+  `/upcoming-events/` page but nothing backs it with structured data. No site
+  checked embeds JSON-LD `Event` schema either.
+- **Why this stops here, per the skill:** the entire value of one adapter is
+  covering many clubs from one endpoint. Here there is no endpoint, structured
+  or otherwise, on any subdomain checked — the only way to get events off these
+  sites would be a bespoke HTML scraper *per subdomain*, which is the "15
+  bespoke scrapers" case the skill explicitly says one adapter is supposed to
+  beat. Not worth it for a hackathon demo. If someone wants to revisit this,
+  check the remaining 9 subdomains first in case one runs an actual calendar
+  plugin with a REST route (the 6 checked were not selected for any reason
+  other than being first alphabetically in the DB dump) — but don't assume a
+  hit on one subdomain generalizes to the rest, since each is a separately
+  administered WordPress site.
+
+---
+
 ## Candidate domains not yet investigated
 
 From `scripts/candidate_domains.py` against the 250-club sample (164 have a
@@ -42,7 +77,6 @@ website link, 124 distinct domains):
 
 | Clubs | Domain | Note |
 |---|---|---|
-| 15 | `sa.utoronto.ca` | Highest-value target. Student affairs club pages. |
 | 5 | `skule.ca` | Engineering society. |
 | 4 | `harthouse.ca` | Hart House programming. |
 | 2 | `chass.utoronto.ca` | |

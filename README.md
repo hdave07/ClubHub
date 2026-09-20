@@ -1,19 +1,106 @@
-# Campus Compass
+# ClubHub
 
-A StudentOS for clubs: match students to clubs by what they actually want, show it as a
-personal Obsidian-style graph, and keep it fresh by turning club posters/PDFs dropped in
-Dropbox into live events via Claude.
+**Find the clubs that actually fit you at U of T — as a map, not a list — and watch it
+update live the moment a club posts something new.**
 
-Original brainstorming doc: [`central-hub-for-clubs.md`](./central-hub-for-clubs.md).
-Condensed, code-facing spec (architecture, data model, 24h timeline): see
-[`CLAUDE.md`](./CLAUDE.md).
+Built at HackMIT.
 
-## Layout
+## The problem
+
+University of Toronto's official club portal (SOP) lists ~1,250 groups behind a keyword
+search across 17 broad categories. It answers "does a club named X exist?" — not "which
+of these 1,250 things should *I* actually join?" And it's stale: at the time this was
+built, SOP's own events API returned **9 upcoming events for the entire campus.** Real
+event info lives on Instagram posters, PDFs pinned to hallway corkboards, and word of
+mouth — not in any structured system a new student can search.
+
+Club fairs are a firehose. Most students end up joining whatever their friends already
+did.
+
+## What ClubHub does
+
+Three things, done well, rather than ten things done halfway:
+
+### 1. Match — a blurb becomes a ranked, reasoned shortlist
+
+Type what you want out of university in plain English —
+*"first-year CS, want internships and friends, not too intense"* — and get back 5–8
+clubs, ranked, each with one sentence tying something concrete in the club's own
+description to something you actually said. No generic hype; a club that can only get a
+generic sentence written about it doesn't make the list.
+
+Under the hood: Voyage embeddings narrow ~250 enriched clubs down to the ~20 nearest by
+meaning, then Claude (Sonnet) reads the candidates against your blurb, drops the ones
+that don't genuinely fit, and writes the "why."
+
+### 2. The constellation — your matches as a small, living graph
+
+Results render as a personal star graph — **you → your outcomes → clubs → their next
+events** — instead of a list of cards. It's deliberately small (15–25 nodes, never the
+full 1,250-club catalog) and it reacts: hovering a club or an outcome lights the exact
+path that explains it, stars carry a soft cursor-reactive physics, and a club's own
+detail panel opens beside the graph instead of replacing it.
+
+Want to look past your own 5–8 matches? **Full Directory** opens the entire enriched
+catalog in its own tab — filterable by tag, commitment level, skills-to-build, or
+professional field — with its own independent search box that builds its *own* graph,
+so exploring never disturbs the constellation you already have.
+
+### 3. Drop a poster, watch it become an event
+
+A club drags a flyer into a shared Dropbox folder (or a student uploads one straight in
+the app). Claude reads it — vision for images, native document input for PDFs — and
+extracts the event: title, start time, location, RSVP link. If the poster is clear and
+Claude is confident, it's live within seconds, badged **"from Dropbox"** with a link back
+to the source file. If a date is blurry or ambiguous, the app **asks the person who just
+uploaded it** to fill in exactly the missing piece — never a silent queue nobody looks
+at, and never a fabricated date on the live feed.
+
+## Why it's built this way
+
+- **The graph stays small on purpose.** A force-directed hairball of 1,250 clubs is a
+  worse UI than a search box. The personal graph earns the "creative visualization" only
+  because it's scoped to *your* results.
+- **Two ingestion paths write to the same tables, honestly.** A synced SOP listing and a
+  Dropbox-extracted poster both become `Club`/`Event` rows, tagged by `source`, so the
+  app never has to pretend one is more real than the other.
+- **A wrong date is worse than no date.** Auto-publish requires a title, a resolved
+  start, a time of day, *and* model confidence — anything short of that goes to a human
+  for one quick confirmation instead of guessing.
+- **Tags are a controlled vocabulary, not free text.** An early pilot with free-form tags
+  produced 148 near-duplicate tags across 25 clubs ("academic" / "academic inquiry" /
+  "academic support"). A fixed 51-term enum made tags reusable and made filtering in Full
+  Directory possible at all.
+
+The full reasoning — and the incidents that produced each rule — is in
+[`DECISIONS.md`](./DECISIONS.md). The condensed, code-facing spec (data model,
+architecture diagram, hard constraints) is in [`CLAUDE.md`](./CLAUDE.md). The original
+brainstorm is [`central-hub-for-clubs.md`](./central-hub-for-clubs.md).
+
+## Architecture
 
 ```
-frontend/   React + Vite + JavaScript (JSX) + Tailwind
-backend/    FastAPI + SQLModel (SQLite) + ChromaDB + Claude API + Dropbox SDK
+SOP Groups API ──┐                    ┌── enrichment (Haiku) ── embeddings (Voyage) ── ChromaDB
+                  ├─→ sop_sync ────────┤
+                  │   (dedupe, sample) └────────────────────────────────────────┐
+                  │                                                             ▼
+Dropbox Inbox ────┴─→ dropbox_watcher ─→ extraction (Sonnet) ─→ matcher ─→  SQLite (Club, Event)
+   (or in-app upload)                    vision / PDF input     (fuzzy,        │
+                                          confidence-gated       never guesses) │
+                                          auto-publish rule                    │
+                                                                                ▼
+                                                        FastAPI: /recommend  /clubs  /events  /upload
+                                                                                │
+                                                                                ▼
+                                                React + @xyflow/react: the star graph, Full Directory
 ```
+
+## Tech stack
+
+| | |
+|---|---|
+| **Backend** | FastAPI · SQLModel (SQLite) · ChromaDB · Anthropic (Claude Sonnet + Haiku) · Voyage AI embeddings · Dropbox SDK |
+| **Frontend** | React + Vite (JavaScript, no TypeScript) · Tailwind v4 · `@xyflow/react` for the star graph |
 
 ## Quickstart
 
@@ -21,33 +108,63 @@ backend/    FastAPI + SQLModel (SQLite) + ChromaDB + Claude API + Dropbox SDK
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate     # .venv\Scripts\activate on Windows
+source .venv/bin/activate       # .venv\Scripts\activate on Windows
 pip install -r requirements.txt
-cp .env.example .env          # fill in ANTHROPIC_API_KEY, DROPBOX_* keys
+cp .env.example .env            # fill in ANTHROPIC_API_KEY, VOYAGE_API_KEY, DROPBOX_*
 uvicorn app.main:app --reload --port 8000
 ```
+The Dropbox watcher starts with the app and re-scans the inbox on every `--reload`
+restart. If you're iterating on backend code and don't want that burning Claude calls,
+set `DROPBOX_WATCHER_ENABLED=0` first.
 
 **Frontend**
 ```bash
 cd frontend
 npm install
-npm run dev                   # http://localhost:5173, proxies /api -> :8000
+npm run dev                     # http://localhost:5173, proxies /api -> :8000
+```
+Needs Node ≥ 20.19 (or ≥ 22.12) — the graph's build tooling (`vite`/`rolldown`) won't
+install its native binding on an older Node and fails with a confusing "optional
+dependencies" error. `node --version` first if `npm run dev` won't start.
+
+**Data**: `backend/data/campus_compass.db` is checked into git with 250 clubs already
+synced and enriched. `backend/data/chroma/` (the vector index) is *not* checked in — if
+`/recommend` comes back empty or thin, index it once:
+```bash
+cd backend && python -m app.services.enrichment_batch --index-only --limit 250
+```
+
+## Project layout
+
+```
+frontend/   React + Vite. src/screens for pages, src/components for the graph/cards/panels,
+            src/lib for the API client, filtering, physics and layout math.
+backend/    FastAPI + SQLModel. app/routers for the four endpoints, app/services for
+            everything that talks to SOP, Dropbox, Claude or Voyage.
 ```
 
 ## Status
 
-Mostly boilerplate. Routers, models, and most service modules are scaffolded with `TODO`s
-matching the spec in `CLAUDE.md` — see the 24h timeline there for build order
-(SOP sync first, then enrichment/embeddings, then `/recommend`, then the Dropbox watcher).
+Both the backend and the core frontend are built and running against real data — this
+isn't scaffolding. Concretely:
 
-**Done:** `app/services/dropbox_store.py` — all Dropbox I/O (list, download, upload, shared
-links). Nothing else in the project imports the `dropbox` SDK directly. Verify your
-credentials and all four OAuth scopes in one command:
+- **250 clubs** synced from UofT's SOP portal (sampled proportionally across interest
+  areas from 897 unique St. George clubs), **100% enriched** (summary, outcomes, tags,
+  commitment) and embedded for search.
+- **`/recommend`** is live: vector search + Claude rerank, tested end to end against the
+  real database.
+- **The constellation and Full Directory** are both built, sharing one soft-physics graph
+  and one hover/highlight model between the graph, the cards, and the club detail panel.
+- **The Dropbox pipeline** (watcher, extraction, fuzzy club matching, confidence-gated
+  publish, human-confirm for ambiguous dates) is built and has been exercised against
+  real uploads, including the "couldn't read this clearly" confirmation path.
 
-```bash
-cd backend && python -m app.services.dropbox_store
-```
+**Deliberately out of scope for this build**, tracked as roadmap in
+[`central-hub-for-clubs.md`](./central-hub-for-clubs.md): accounts/auth, push
+notifications, Instagram/Discord scraping, multi-campus support, and a review dashboard
+for posters a club drops directly into Dropbox with no one at the keyboard to confirm an
+ambiguous date (the in-app upload flow has one; the unattended watcher path doesn't).
 
-Requires `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, and `DROPBOX_REFRESH_TOKEN` in `.env` —
-a refresh token from the offline-access flow, not the 4-hour token the App Console's
-"Generate" button gives you. `DROPBOX_INBOX_PATH` is relative to the app folder (`/Inbox`).
+## Team
+
+[Angela Koo](https://github.com/angbengi) · [Avi Patel](https://github.com/avi1277) · [Harini Dave](https://github.com/hdave07) · [James Romasco](https://github.com/Pufferfish-Kirby)

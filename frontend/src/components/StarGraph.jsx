@@ -66,6 +66,7 @@ function panelLabelSide(club, event) {
  * highlight falls back to the selected club (or nothing). Highlight state never touches the layout.
  * @param {{ response?: object, graph?: { nodes: object[], edges: object[] }, selectedId?: string | null,
  *   hoveredId?: string | null, hoveredOutcome?: string | null, onSelect?: (id: string | null) => void,
+ *   onSelectEvent?: (clubId: string, eventId: string) => void,
  *   onHover?: (clubId: string | null) => void, onHoverOutcome?: (outcomeNodeId: string | null) => void,
  *   pulseIds?: Set<string>, panelOpen?: boolean }} props
  * `graph` is the laid-out graph (lib/layout.js layoutGraph); pass it to share one memoized layout with the list,
@@ -78,6 +79,7 @@ export default function StarGraph({
   hoveredId = null,
   hoveredOutcome = null,
   onSelect,
+  onSelectEvent,
   onHover,
   onHoverOutcome,
   pulseIds = NO_PULSE,
@@ -146,12 +148,14 @@ export default function StarGraph({
           side: panelOpen && n.type === 'club' ? panelLabelSide(n, eventOfClub.get(n.id)) : n.data?.side,
           pulse: n.type === 'event' && pulseIds.has(n.id),
           brightness: useBrightness ? clubBrightness(n.data?.last_updated) : 1,
-          onSelect: () => onSelect?.(clubId),
+          // An event star opens its own tab in the panel; a club star (or the panel's own club tab) just selects the club.
+          onSelect: () =>
+            n.type === 'event' ? onSelectEvent?.(clubId, n.id.replace(/^event:/, '')) : onSelect?.(clubId),
           onHover: (on) => onHover?.(on ? clubId : null), // keyboard focus/blur on a club or event node
         },
       }
     })
-  }, [graph, panelOpen, pulseIds, useBrightness, onSelect, onHover])
+  }, [graph, panelOpen, pulseIds, useBrightness, onSelect, onSelectEvent, onHover])
 
   // What the node components read (through context) to dim, light and enlarge themselves. `nodes` itself never changes
   // on hover, so React Flow does no work and keeps its edge elements (see lib/graphView.js).

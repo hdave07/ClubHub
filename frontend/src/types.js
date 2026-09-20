@@ -42,6 +42,7 @@ export function normalizeOutcome(value) {
  * @property {string} title
  * @property {string} start ISO string
  * @property {string} [location]
+ * @property {string} [description]
  * @property {"sop" | "dropbox"} source
  * @property {string} [source_file]
  * @property {string} [dropbox_link]

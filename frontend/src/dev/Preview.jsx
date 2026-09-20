@@ -100,6 +100,7 @@ function LiveDemo() {
             selectedId={selectedId}
             hoveredId={hoveredId}
             onSelect={setSelectedId}
+            onSelectEvent={setSelectedId}
             onHover={setHoveredId}
             pulseIds={pulseIds}
           />
@@ -119,6 +120,7 @@ function ManyGraph() {
         selectedId={selectedId}
         hoveredId={hoveredId}
         onSelect={setSelectedId}
+        onSelectEvent={setSelectedId}
         onHover={setHoveredId}
       />
     </div>

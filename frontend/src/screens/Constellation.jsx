@@ -49,9 +49,11 @@ function GraphPanel({
   graph,
   loading,
   selectedId,
+  selectedEventId,
   hoveredId,
   hoveredOutcome,
   onSelect,
+  onSelectEvent,
   onHover,
   onHoverOutcome,
   pulseIds,
@@ -77,6 +79,7 @@ function GraphPanel({
           hoveredId={hoveredId}
           hoveredOutcome={hoveredOutcome}
           onSelect={onSelect}
+          onSelectEvent={onSelectEvent}
           onHover={onHover}
           onHoverOutcome={onHoverOutcome}
           pulseIds={pulseIds}
@@ -91,6 +94,8 @@ function GraphPanel({
           loading={panel.loading}
           error={panel.error}
           notFound={panel.notFound}
+          selectedEventId={selectedEventId}
+          onSelectEvent={(eventId) => onSelectEvent?.(club.id, eventId)}
           onRetry={panel.retry ?? noop}
           onClose={onClose}
         />
@@ -101,6 +106,17 @@ function GraphPanel({
 
 export default function Constellation({ data, loading, error, retry, onEdit }) {
   const [selectedId, setSelectedId] = useState(null)
+  // Which event the panel's "Event" tab explains, if any. Cleared whenever the club selection changes so a new
+  // club always opens on its "Club" tab; set directly when an event star (or an arrival toast) is opened instead.
+  const [selectedEventId, setSelectedEventId] = useState(null)
+  const selectClub = useCallback((id) => {
+    setSelectedId(id)
+    setSelectedEventId(null)
+  }, [])
+  const selectEvent = useCallback((clubId, eventId) => {
+    setSelectedId(clubId)
+    setSelectedEventId(eventId)
+  }, [])
   // Hover is transient, selection is sticky: the graph and the cards show the hover while it lasts, then fall back
   // to the selection. Hover never opens the club panel; only a click does.
   const [hoveredClubId, setHoveredClubId] = useState(null)
@@ -151,11 +167,11 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   const openFromToast = useCallback(
     (toast) => {
       dismissToast(toast.key)
-      setSelectedId(toast.clubId)
+      selectEvent(toast.clubId, toast.event?.id ?? null) // the toast is about a specific arrival, so open straight to it
       const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       cardFor(toast.clubId)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
     },
-    [dismissToast],
+    [dismissToast, selectEvent],
   )
   const resultClubIds = useMemo(() => new Set(clubIds), [clubIds])
   const onPublished = useCallback((events) => events.forEach(inject), [inject])
@@ -203,7 +219,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
     : live
   const panelDetail = useMemo(() => applyArrivalsToDetail(rawPanel.detail, arrivals), [rawPanel.detail, arrivals])
   const panel = { ...rawPanel, detail: panelDetail }
-  const closePanel = useCallback(() => setSelectedId(null), [])
+  const closePanel = useCallback(() => selectClub(null), [selectClub])
 
   // The mascot: scanning while /recommend runs, "discovered" for 2.5 s when an arrival starts its highlight.
   const mascotState = useMascotState({ loading: isLoading, pulseIds })
@@ -217,13 +233,15 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
       if (!ev || typeof ev !== 'object' || (ev.status != null && ev.status !== 'published')) continue
       const t = Date.parse(ev.start)
       if (Number.isNaN(t) || t < now) continue
-      if (!best || t < best.t) best = { t, id: c.id }
+      if (!best || t < best.t) best = { t, id: c.id, eventId: ev.id ?? null }
     }
     if (!best) return
-    setSelectedId(best.id)
+    // The mascot points at one specific event, like an arrival toast does, so open the panel's Event tab on it.
+    // A match without an event id still opens the club (ClubPanel keeps the Club tab when selectedEventId is null).
+    selectEvent(best.id, best.eventId)
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     cardFor(best.id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
-  }, [clubs])
+  }, [clubs, selectEvent])
 
   if (err) {
     return (
@@ -343,16 +361,18 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
               dimOthers={hoveredOutcome != null}
               scrollToId={scrollToId}
               highlightIds={highlightIds}
-              onSelect={setSelectedId}
+              onSelect={selectClub}
               onHover={hoverFromCard}
             />
             <GraphPanel
               graph={graph}
               loading={isLoading}
               selectedId={selectedId}
+              selectedEventId={selectedEventId}
               hoveredId={hoveredClubId}
               hoveredOutcome={hoveredOutcome}
-              onSelect={setSelectedId}
+              onSelect={selectClub}
+              onSelectEvent={selectEvent}
               onHover={hoverFromGraph}
               onHoverOutcome={hoverOutcome}
               pulseIds={pulseIds}
