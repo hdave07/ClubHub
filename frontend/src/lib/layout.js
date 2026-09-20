@@ -1,3 +1,4 @@
+import { buildGraph } from '@/lib/buildGraph'
 import { nodeStyles } from '@/lib/theme'
 
 const OUTCOME_RING = 130
@@ -131,4 +132,14 @@ export function radialLayout(nodes, edges) {
     if (side) out.data = { ...n.data, side }
     return out
   })
+}
+
+/**
+ * buildGraph + radialLayout in one step. Memoize on the response: the result only changes when the matches do,
+ * never on hover.
+ * @param {Parameters<typeof buildGraph>[0]} response
+ */
+export function layoutGraph(response) {
+  const g = buildGraph(response)
+  return { nodes: radialLayout(g.nodes, g.edges), edges: g.edges }
 }

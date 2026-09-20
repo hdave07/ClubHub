@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { SKIP_BLURB, buildBlurb } from '@/lib/blurb'
 import { motion } from '@/lib/theme'
 import { useRecommend } from '@/lib/useRecommend'
@@ -6,6 +6,10 @@ import Blurb from '@/screens/Blurb'
 import Constellation from '@/screens/Constellation'
 import Major from '@/screens/Major'
 import Welcome from '@/screens/Welcome'
+
+// One particle background behind Welcome, Major and Blurb. It lives here, above the step wrapper, so it keeps running
+// (no restart or flash) as the steps change. Loaded only when needed.
+const LandingBackground = lazy(() => import('@/components/LandingBackground'))
 
 // Dev only: with ?previewData, open straight on the results screen. Remove after real data lands.
 const PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
@@ -29,6 +33,8 @@ function App() {
   const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'welcome') // welcome | major | blurb | results
   const [input, setInput] = useState(loadInput)
   const [skipped, setSkipped] = useState(false)
+  // Reduced motion: no animated background (Welcome keeps its static stars).
+  const [animate] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   const { data, loading, error, run, retry } = useRecommend()
 
   useEffect(() => {
@@ -52,10 +58,17 @@ function App() {
   }
 
   return (
-    <div className="min-h-svh bg-background text-foreground">
+    <div className="relative min-h-svh bg-background text-foreground">
+      {animate && step !== 'results' && (
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
+          <Suspense fallback={null}>
+            <LandingBackground />
+          </Suspense>
+        </div>
+      )}
       <div
         key={step}
-        className="animate-in fade-in"
+        className="relative z-10 animate-in fade-in"
         style={{ animationDuration: `${motion.base}ms` }}
       >
         {step === 'welcome' && <Welcome onExplore={() => setStep('major')} onSkip={lookAround} />}

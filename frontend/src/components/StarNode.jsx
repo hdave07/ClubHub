@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
+import { HOVER_SCALE, TRANSITION_MS } from '@/lib/graphTuning'
+import { useNodeView } from '@/lib/graphView'
 import { gold, motion, nodeStyles, sky } from '@/lib/theme'
 import { outcomeLabel } from '@/lib/labels'
 
@@ -65,7 +67,9 @@ function Label({ side = 'bottom', color, weight = 400, title, hidden = false, ch
   )
 }
 
-const fade = (dim) => ({ opacity: dim ? 0.35 : 1, transition: `opacity ${motion.base}ms` })
+// A node's emphasis (1 = the hovered star, less for its neighbors and the rest) eases in and out.
+const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+const fade = (opacity = 1) => ({ opacity, transition: `opacity ${TRANSITION_MS}ms ${EASE}` })
 
 function activateOnKey(e, onActivate) {
   if (e.key === 'Enter' || e.key === ' ') {
@@ -78,8 +82,9 @@ function activateOnKey(e, onActivate) {
 // Node sizes are the visible circle only, so the layout's centering stays exact; labels are absolutely positioned.
 export function YouNode({ data }) {
   const { size } = nodeStyles.you
+  const v = useNodeView(data.nodeId, 'you')
   return (
-    <div style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}>
+    <div style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}>
       <Handles />
       <div
         style={{
@@ -105,8 +110,9 @@ export function YouNode({ data }) {
 
 export function OutcomeNode({ data }) {
   const { size } = nodeStyles.outcome
+  const v = useNodeView(data.nodeId, 'outcome')
   return (
-    <div style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}>
+    <div style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}>
       <Handles />
       <div
         style={{
@@ -115,11 +121,12 @@ export function OutcomeNode({ data }) {
           height: size,
           borderRadius: '50%',
           background: sky.surface, // hides the edge line behind the ring
-          border: `1.5px solid ${data.lit ? sky.heading : sky.textMuted}`,
-          transition: `border-color ${motion.base}ms`,
+          border: `1.5px solid ${v.lit ? gold.color : sky.textMuted}`,
+          transform: v.direct ? `scale(${HOVER_SCALE})` : 'none',
+          transition: `border-color ${TRANSITION_MS}ms ${EASE}, transform ${TRANSITION_MS}ms ${EASE}`,
         }}
       />
-      <Label side={data.side} color={data.lit ? sky.heading : sky.textMuted} hidden={data.labelHidden}>
+      <Label side={data.side} color={v.lit ? sky.heading : sky.textMuted} hidden={v.labelHidden}>
         {outcomeLabel(data.key)}
       </Label>
     </div>
@@ -130,25 +137,25 @@ const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
 export function ClubNode({ data }) {
   const { size } = nodeStyles.club
-  const emphasized = data.selected || data.hovered
+  const v = useNodeView(data.nodeId, 'club', data.clubId)
+  const emphasized = v.selected || v.hovered
   const name = data.label ?? ''
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={`${data.rank ?? ''}. ${name}`.trim()}
-      aria-pressed={data.selected}
+      aria-pressed={v.selected}
       onClick={(e) => {
         e.stopPropagation() // don't count as an empty-space click
         data.onSelect()
       }}
       onKeyDown={(e) => activateOnKey(e, data.onSelect)}
-      onMouseEnter={() => data.onHover(true)}
-      onMouseLeave={() => data.onHover(false)}
+      // mouse hover is handled by React Flow (onNodeMouseEnter/Leave in StarGraph); keyboard focus lives here
       onFocus={() => data.onHover(true)}
       onBlur={() => data.onHover(false)}
       className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}
+      style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}
     >
       <Handles />
       {/* larger invisible hit area: the dot itself is only 9px */}
@@ -160,13 +167,19 @@ export function ClubNode({ data }) {
           borderRadius: '50%',
           background: emphasized ? gold.color : sky.heading,
           opacity: emphasized ? 1 : data.brightness,
-          transform: emphasized ? 'scale(1.4)' : 'none',
+          transform: emphasized ? `scale(${HOVER_SCALE})` : 'none',
           // selected also gets a hairline ring, so the state isn't color alone
-          boxShadow: data.selected ? `0 0 0 3px ${sky.surface}, 0 0 0 4px ${gold.color}` : 'none',
-          transition: `transform ${motion.fast}ms, background-color ${motion.base}ms, opacity ${motion.base}ms`,
+          boxShadow:
+            [
+              v.selected && `0 0 0 3px ${sky.surface}, 0 0 0 4px ${gold.color}`,
+              v.direct && `0 0 9px 2px ${gold.color}55`, // a faint halo, only on the star under the pointer
+            ]
+              .filter(Boolean)
+              .join(', ') || 'none',
+          transition: `transform ${TRANSITION_MS}ms ${EASE}, background-color ${TRANSITION_MS}ms ${EASE}, opacity ${TRANSITION_MS}ms ${EASE}, box-shadow ${TRANSITION_MS}ms ${EASE}`,
         }}
       />
-      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name} hidden={data.labelHidden}>
+      <Label side={data.side} color={sky.heading} weight={emphasized ? 600 : 400} title={name} hidden={v.labelHidden}>
         {truncate(name, 34)}
       </Label>
     </div>
@@ -177,8 +190,11 @@ export function ClubNode({ data }) {
 export function EventNode({ data }) {
   const [active, setActive] = useState(false)
   const { size } = nodeStyles.event
-  const lit = data.lit || active
-  const set = (on) => {
+  const v = useNodeView(data.nodeId, 'event', data.clubId)
+  const lit = v.lit || active
+  // Mouse hover on the dot only shows its own label (the club highlight comes from React Flow in StarGraph);
+  // keyboard focus also lights the club.
+  const focusSet = (on) => {
     setActive(on)
     data.onHover(on)
   }
@@ -192,12 +208,12 @@ export function EventNode({ data }) {
         data.onSelect()
       }}
       onKeyDown={(e) => activateOnKey(e, data.onSelect)}
-      onMouseEnter={() => set(true)}
-      onMouseLeave={() => set(false)}
-      onFocus={() => set(true)}
-      onBlur={() => set(false)}
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => focusSet(true)}
+      onBlur={() => focusSet(false)}
       className="cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={{ position: 'relative', width: size, height: size, ...fade(data.dim) }}
+      style={{ position: 'relative', width: size, height: size, ...fade(v.opacity) }}
     >
       <Handles />
       <span aria-hidden style={{ position: 'absolute', inset: -9, borderRadius: '50%' }} />

@@ -57,7 +57,7 @@ export default function Blurb({ text, onChange, onLaunch }) {
             }
           }}
           placeholder="e.g. first-year CS, want internships and friends, not too intense"
-          className="min-h-36"
+          className="min-h-36 dark:bg-card"
           aria-label="What you want out of university"
         />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Interest helpers">
@@ -71,7 +71,7 @@ export default function Blurb({ text, onChange, onLaunch }) {
                 variant="outline"
                 aria-pressed={on}
                 onClick={() => toggle(chip)}
-                className={cn(on && 'ring-2 ring-ring')}
+                className={cn('dark:bg-card', on && 'ring-2 ring-ring')}
               >
                 {chip}
               </Button>

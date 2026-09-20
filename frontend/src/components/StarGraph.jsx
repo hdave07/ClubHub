@@ -1,20 +1,24 @@
 import '@xyflow/react/dist/style.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlow } from '@xyflow/react'
 import { PANEL_GAP, PANEL_WIDTH } from '@/components/ClubPanel'
 import StarField from '@/components/StarField'
+import StarEdge from '@/components/StarEdge'
 import { ClubNode, EventNode, OutcomeNode, YouNode } from '@/components/StarNode'
-import { buildGraph } from '@/lib/buildGraph'
-import { radialLayout } from '@/lib/layout'
-import { clubBrightness, gold, motion, nodeStyles, sky } from '@/lib/theme'
+import { DIMMED_OPACITY } from '@/lib/graphTuning'
+import { GraphViewContext } from '@/lib/graphView'
+import { useStarPhysics } from '@/lib/useStarPhysics'
+import { computeHighlight } from '@/lib/highlight'
+import { layoutGraph } from '@/lib/layout'
+import { clubBrightness, motion, nodeStyles, sky } from '@/lib/theme'
 
 const nodeTypes = { you: YouNode, outcome: OutcomeNode, club: ClubNode, event: EventNode }
+const edgeTypes = { star: StarEdge }
 const NO_PULSE = new Set()
 
 // Edges are hairlines: nearly invisible until a club is focused, when its path turns gold.
 const EDGE = `${sky.heading}1A`
 const EDGE_EVENT = `${sky.heading}12` // event edges are the faintest
-const EDGE_DIM = 0.3
 
 const BASE_PADDING = { top: 56, bottom: 56, left: 140, right: 140 } // room for the labels beside the outer nodes
 const DESKTOP = '(min-width: 1024px)'
@@ -41,19 +45,39 @@ function panelLabelSide(club, event) {
   return `${vertical}${centerX > 0 ? 'End' : 'Start'}`
 }
 
+/**
+ * Hover is transient and selection is sticky: while something is hovered its path is the highlight, on leave the
+ * highlight falls back to the selected club (or nothing). Highlight state never touches the layout.
+ * @param {{ response?: object, graph?: { nodes: object[], edges: object[] }, selectedId?: string | null,
+ *   hoveredId?: string | null, hoveredOutcome?: string | null, onSelect?: (id: string | null) => void,
+ *   onHover?: (clubId: string | null) => void, onHoverOutcome?: (outcomeNodeId: string | null) => void,
+ *   pulseIds?: Set<string>, panelOpen?: boolean }} props
+ * `graph` is the laid-out graph (lib/layout.js layoutGraph); pass it to share one memoized layout with the list,
+ * otherwise it is built from `response`.
+ */
 export default function StarGraph({
   response,
+  graph: graphProp,
   selectedId = null,
   hoveredId = null,
+  hoveredOutcome = null,
   onSelect,
   onHover,
+  onHoverOutcome,
   pulseIds = NO_PULSE,
   panelOpen = false,
 }) {
-  const graph = useMemo(() => {
-    const g = buildGraph(response)
-    return { nodes: radialLayout(g.nodes, g.edges), edges: g.edges }
-  }, [response])
+  const built = useMemo(() => (graphProp ? null : layoutGraph(response)), [graphProp, response])
+  const graph = graphProp ?? built
+
+  // Cursor physics and idle drift: a frame loop outside React (lib/useStarPhysics.js). It needs the current viewport
+  // to turn screen pixels into flow units, so it is kept in a ref, never in state.
+  const rootRef = useRef(null)
+  const viewRef = useRef({ x: 0, y: 0, zoom: 1 })
+  useStarPhysics(rootRef, graph, viewRef)
+  useEffect(() => {
+    if (import.meta.env.DEV) window.__starGraphRenders = (window.__starGraphRenders ?? 0) + 1 // dev only: render counter for tests
+  })
 
   // Refit only when the panel opens or closes (with a short glide), not on first render or when switching clubs.
   const [flow, setFlow] = useState(null)
@@ -70,104 +94,154 @@ export default function StarGraph({
     return () => clearTimeout(t)
   }, [])
 
-  // Focus = hovered club, else selected club. The path that explains it stays bright; the rest recedes.
-  const focusId = hoveredId ?? selectedId
-  const focusNodeId = focusId != null ? `club:${focusId}` : null
-  const active = useMemo(() => {
-    const focusNode = focusNodeId && graph.nodes.find((n) => n.id === focusNodeId)
-    if (!focusNode) return null
-    const ids = new Set(['you', focusNode.id])
-    for (const e of graph.edges) {
-      if (e.target === focusNode.id || e.source === focusNode.id) {
-        ids.add(e.source)
-        ids.add(e.target)
-      }
-    }
-    return ids
-  }, [graph, focusNodeId])
+  // The highlight: the hovered path if something is hovered, else the selected club's path, else none.
+  const selectionHL = useMemo(
+    () => (selectedId != null ? computeHighlight(graph, { clubIds: [String(selectedId)] }) : null),
+    [graph, selectedId],
+  )
+  const hoverHL = useMemo(() => {
+    if (hoveredId != null) return computeHighlight(graph, { clubIds: [String(hoveredId)] })
+    if (hoveredOutcome) return computeHighlight(graph, { outcomeId: hoveredOutcome })
+    return null
+  }, [graph, hoveredId, hoveredOutcome])
+  const active = hoverHL ?? selectionHL
 
+  const reducedMotion = useMemo(() => matches(REDUCED_MOTION), [])
   const useBrightness = graph.nodes.some((n) => n.type === 'club' && n.data?.last_updated)
 
-  const nodes = useMemo(() => {
+  // Base nodes: nothing here depends on hover or selection, so hovering never rebuilds them.
+  const baseNodes = useMemo(() => {
     const byId = new Map(graph.nodes.map((n) => [n.id, n]))
     const eventOfClub = new Map(graph.edges.filter((e) => e.target.startsWith('event:')).map((e) => [e.source, byId.get(e.target)]))
     return graph.nodes.map((n) => {
-        const clubId = n.data?.clubId
-        return {
-          id: n.id,
-          type: n.type,
-          position: n.position,
-          draggable: false,
-          selectable: false,
-          focusable: false,
-          ariaLabel: n.type === 'club' ? `${n.data?.rank ?? ''}. ${n.label}`.trim() : n.label,
-          data: {
-            ...n.data,
-            label: n.label,
-            side: panelOpen && n.type === 'club' ? panelLabelSide(n, eventOfClub.get(n.id)) : n.data?.side,
-            dim: active ? !active.has(n.id) : false,
-            lit: active ? active.has(n.id) : false,
-            // with the club panel open the graph is small: only the focused club's path keeps its labels
-            labelHidden: panelOpen && !!active && !active.has(n.id),
-            selected: n.type === 'club' && clubId === selectedId,
-            hovered: n.type === 'club' && clubId === hoveredId,
-            pulse: n.type === 'event' && pulseIds.has(n.id),
-            brightness: useBrightness ? clubBrightness(n.data?.last_updated) : 1,
-            onSelect: () => onSelect?.(clubId),
-            onHover: (on) => onHover?.(on ? clubId : null),
-          },
-        }
-      })
-  }, [graph, active, panelOpen, selectedId, hoveredId, pulseIds, useBrightness, onSelect, onHover])
+      const clubId = n.data?.clubId
+      return {
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        draggable: false,
+        selectable: false,
+        focusable: false,
+        ariaLabel: n.type === 'club' ? `${n.data?.rank ?? ''}. ${n.label}`.trim() : n.label,
+        data: {
+          ...n.data,
+          nodeId: n.id,
+          label: n.label,
+          side: panelOpen && n.type === 'club' ? panelLabelSide(n, eventOfClub.get(n.id)) : n.data?.side,
+          pulse: n.type === 'event' && pulseIds.has(n.id),
+          brightness: useBrightness ? clubBrightness(n.data?.last_updated) : 1,
+          onSelect: () => onSelect?.(clubId),
+          onHover: (on) => onHover?.(on ? clubId : null), // keyboard focus/blur on a club or event node
+        },
+      }
+    })
+  }, [graph, panelOpen, pulseIds, useBrightness, onSelect, onHover])
+
+  // What the node components read (through context) to dim, light and enlarge themselves. `nodes` itself never changes
+  // on hover, so React Flow does no work and keeps its edge elements (see lib/graphView.js).
+  const view = useMemo(
+    () => ({ active, hoverHL, selectionHL, selectedId, hoveredId, hoveredOutcome, panelOpen }),
+    [active, hoverHL, selectionHL, selectedId, hoveredId, hoveredOutcome, panelOpen],
+  )
 
   const edges = useMemo(
     () =>
       graph.edges.map((e) => {
-        const lit = active && active.has(e.source) && active.has(e.target)
-        const toEvent = e.target.startsWith('event:')
+        const id = `${e.source}->${e.target}`
         return {
-          id: `${e.source}->${e.target}`,
+          id,
           source: e.source,
           target: e.target,
-          type: 'straight',
+          type: 'star',
           focusable: false,
           selectable: false,
-          style: {
-            stroke: lit ? gold.color : toEvent ? EDGE_EVENT : EDGE,
-            strokeWidth: lit ? 1.25 : 1,
-            opacity: active && !lit ? EDGE_DIM : 1,
-            transition: `opacity ${motion.base}ms, stroke ${motion.base}ms`,
-          },
+          data: { base: e.target.startsWith('event:') ? EDGE_EVENT : EDGE, instant: reducedMotion },
         }
       }),
-    [graph, active],
+    [graph, reducedMotion], // not `active`: a changing edge list makes React Flow replace every edge element
+  )
+
+  // The hovered constellation's connections, applied straight to the (persistent) edge elements so their CSS
+  // transitions run: the gold line draws in, the rest of the faint lines ease down. See StarEdge.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+    let raf = 0
+    let tries = 0
+    const apply = () => {
+      let missing = false
+      for (const e of graph.edges) {
+        const id = `${e.source}->${e.target}`
+        const [base, over] = root.querySelectorAll(`path[data-edge="${id}"]`)
+        if (!base || !over) {
+          missing = true // React Flow adds its edges a beat after the first render
+          continue
+        }
+        const lit = !!active?.edgeIds.has(id)
+        base.style.opacity = active && !lit ? DIMMED_OPACITY : 1
+        over.style.strokeDashoffset = lit ? 0 : 1
+      }
+      if (missing && tries++ < 30) raf = requestAnimationFrame(apply)
+    }
+    apply()
+    return () => cancelAnimationFrame(raf)
+  }, [graph, active, baseNodes])
+
+  const handleInit = useCallback((instance) => {
+    viewRef.current = instance.getViewport()
+    setFlow(instance)
+  }, [])
+  const handleMove = useCallback((_, viewport) => {
+    viewRef.current = viewport
+  }, [])
+
+  // Graph -> card: a club or its event lights that club, an outcome lights every club under it, "you" does nothing.
+  const enter = useCallback(
+    (_, node) => {
+      if (node.type === 'club' || node.type === 'event') onHover?.(node.data.clubId)
+      else if (node.type === 'outcome') onHoverOutcome?.(node.id)
+    },
+    [onHover, onHoverOutcome],
+  )
+  const leave = useCallback(
+    (_, node) => {
+      if (node.type === 'club' || node.type === 'event') onHover?.(null)
+      else if (node.type === 'outcome') onHoverOutcome?.(null)
+    },
+    [onHover, onHoverOutcome],
   )
 
   if (!graph.nodes.some((n) => n.type === 'club')) return null // only "you": the empty state covers it
 
   return (
-    <div className="absolute inset-0">
+    <div ref={rootRef} className="absolute inset-0">
       <StarField />
-      <ReactFlow
-        key={graph.nodes.map((n) => n.id).join('|')} // refit when the graph changes
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        colorMode="dark"
-        fitView
-        fitViewOptions={{ padding: fitPadding(panelOpen) }}
-        onInit={setFlow}
-        attributionPosition="bottom-left"
-        minZoom={0.4}
-        maxZoom={1.6}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        nodesFocusable={false}
-        edgesFocusable={false}
-        onPaneClick={() => onSelect?.(null)}
-        style={{ background: 'transparent', '--xy-background-color': 'transparent' }}
-      />
+      <GraphViewContext.Provider value={view}>
+        <ReactFlow
+          key={graph.nodes.map((n) => n.id).join('|')} // refit when the graph changes
+          nodes={baseNodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          colorMode="dark"
+          fitView
+          fitViewOptions={{ padding: fitPadding(panelOpen) }}
+          onInit={handleInit}
+        onMove={handleMove}
+          attributionPosition="bottom-left"
+          minZoom={0.4}
+          maxZoom={1.6}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          nodesFocusable={false}
+          edgesFocusable={false}
+          onPaneClick={() => onSelect?.(null)}
+          onNodeMouseEnter={enter}
+          onNodeMouseLeave={leave}
+          style={{ background: 'transparent', '--xy-background-color': 'transparent' }}
+        />
+      </GraphViewContext.Provider>
       <p
         className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs text-muted-foreground"
         style={{ opacity: showHint && !panelOpen ? 1 : 0, transition: `opacity ${motion.slow}ms` }}
