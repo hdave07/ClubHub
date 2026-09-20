@@ -1,0 +1,30 @@
+#!/bin/sh
+# Refuse to commit a real .env.
+#
+# This exists because it already happened: .gitignore carried "!*.env" -- a
+# negation that un-ignored every env file -- and four commits went up with live
+# Anthropic, Voyage and Dropbox credentials in them. The ignore rule is fixed,
+# but an ignore rule only helps until someone runs "git add -f", and a rule that
+# silently stopped working is exactly what caused the leak. This fails loudly.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+#
+# Bypass (you had better be sure):
+#     git commit --no-verify
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+blocked=$(printf '%s\n' "$staged" | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$')
+
+if [ -n "$blocked" ]; then
+	echo "pre-commit: refusing to commit environment file(s):" >&2
+	printf '  %s\n' $blocked >&2
+	echo "" >&2
+	echo "These hold live credentials. Unstage with:" >&2
+	printf '  git restore --staged %s\n' $blocked >&2
+	echo "" >&2
+	echo "Only .env.example belongs in the repo." >&2
+	exit 1
+fi
+
+exit 0

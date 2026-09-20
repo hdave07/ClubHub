@@ -26,5 +26,33 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/campus_compass.db"
     chroma_persist_dir: str = "./data/chroma"
 
+    # --- security -----------------------------------------------------------
+    # "development" keeps the transport rules inert so localhost keeps working;
+    # anything else turns on the HTTPS redirect, HSTS and host allow-listing.
+    # Set ENVIRONMENT=production the moment this is reachable off this machine.
+    environment: str = "development"
+
+    # Comma-separated so they can be set from a single env var on any host.
+    cors_origins: str = "http://localhost:5173,http://localhost:5500,http://127.0.0.1:5500"
+    # Host header allow-list, used only outside development. "*" disables the check.
+    trusted_hosts: str = "*"
+
+    # Rate limiting is per-process and in-memory (see app/security.py), which is
+    # correct for one uvicorn worker. Turn it off for load testing, not casually:
+    # /recommend spends a Voyage call plus a Sonnet call on every request.
+    rate_limit_enabled: bool = True
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() != "development"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def trusted_host_list(self) -> list[str]:
+        return [h.strip() for h in self.trusted_hosts.split(",") if h.strip()]
+
 
 settings = Settings()

@@ -1,6 +1,12 @@
-# Env
-!*.env
-.env.local
+# Env -- secrets never go in the repo.
+# This block used to read "!*.env", and a leading "!" is a NEGATION: it actively
+# un-ignored every .env file, which is how backend/.env (Anthropic, Voyage and
+# Dropbox credentials) ended up committed. Keep the negation for .env.example
+# only -- that file is the checked-in template and holds no real values.
+.env
+*.env
+.env.*
+!.env.example
 !*.env.example
 
 # Node / frontend

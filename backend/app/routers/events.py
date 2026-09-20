@@ -6,14 +6,19 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Event
+from app.schemas import PublicEvent
 from app.services.extraction import to_utc
 
 router = APIRouter(prefix="/events", tags=["events"])
 
 
-@router.get("")
+@router.get("", response_model=list[PublicEvent])
 def list_events(since: datetime | None = None, session: Session = Depends(get_session)):
-    """Live feed of published events, including Dropbox-sourced updates."""
+    """Live feed of published events, including Dropbox-sourced updates.
+
+    Shaped by PublicEvent rather than returned raw: the row carries an internal
+    `confidence` score that has no meaning to a student and no place on the wire.
+    """
     query = select(Event).where(Event.status == "published")
     if since:
         query = query.where(Event.start >= since)

@@ -13,6 +13,7 @@ itself. The rerank supplies the judgement and the sentence.
 """
 
 import asyncio
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,7 +26,16 @@ from app.services import embeddings, reranker
 
 router = APIRouter(tags=["recommend"])
 
+logger = logging.getLogger(__name__)
+
 CANDIDATE_POOL = 20
+
+# Upstream failures are logged in full and reported generically. A provider's
+# error text is written for whoever holds the account, not for the public: the
+# Voyage quota error, for one, spells out the billing state of the org. Nothing
+# from an exception reaches the client.
+_SEARCH_UNAVAILABLE = "Search is unavailable right now. Try again in a moment."
+_RANKING_UNAVAILABLE = "Couldn't rank your matches right now. Try again in a moment."
 
 
 def _next_events(session: Session, club_ids: list[str]) -> dict[str, Event]:
@@ -71,7 +81,8 @@ async def recommend(
             embeddings.query_clubs, blurb, CANDIDATE_POOL
         )
     except embeddings.EmbeddingError as e:
-        raise HTTPException(status_code=503, detail=f"Search is unavailable: {e}") from e
+        logger.exception("vector search failed for /recommend")
+        raise HTTPException(status_code=503, detail=_SEARCH_UNAVAILABLE) from e
 
     if not candidate_ids:
         # No embedded clubs yet. An empty result is the honest answer -- the
@@ -88,7 +99,8 @@ async def recommend(
     try:
         ranking = await asyncio.to_thread(reranker.rank_clubs, blurb, candidates)
     except reranker.RerankError as e:
-        raise HTTPException(status_code=503, detail=f"Ranking failed: {e}") from e
+        logger.exception("rerank failed for /recommend")
+        raise HTTPException(status_code=503, detail=_RANKING_UNAVAILABLE) from e
 
     upcoming = _next_events(session, [r.club.id for r in ranking.clubs])
 

@@ -18,6 +18,7 @@ stops the watcher re-processing the same file when it next scans the folder.
 """
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from sqlmodel import Session
@@ -29,9 +30,12 @@ from app.services.ingest import IngestResult, process_file
 
 router = APIRouter(tags=["upload"])
 
+logger = logging.getLogger(__name__)
+
 # Claude's limits are far higher, but a flier photo has no business being larger
 # than this, and an unbounded read is a trivial way to exhaust memory.
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 64 * 1024
 
 _MESSAGES = {
     "no_events": "We read the file but couldn't find an event on it.",
@@ -92,14 +96,23 @@ async def upload_flier(file: UploadFile) -> UploadResponse:
             ),
         )
 
-    data = await file.read()
+    # Read in chunks and stop at the cap. `await file.read()` enforced the limit
+    # only once the whole body was already in memory, which is the exhaustion the
+    # cap exists to prevent: a 2 GB POST was buffered in full and only then refused.
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(UPLOAD_CHUNK_BYTES):
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File is too large (max {MAX_UPLOAD_BYTES // 1024 // 1024} MB).",
+            )
+        chunks.append(chunk)
+
+    data = b"".join(chunks)
     if not data:
         raise HTTPException(status_code=400, detail="The file is empty.")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File is too large (max {MAX_UPLOAD_BYTES // 1024 // 1024} MB).",
-        )
 
     # Dropbox upload + Claude extraction are both blocking and take seconds.
     # On the event loop they would stall every other request for the duration.
@@ -107,9 +120,12 @@ async def upload_flier(file: UploadFile) -> UploadResponse:
         result = await asyncio.to_thread(_store_and_process, data, filename)
     except Exception as e:
         # Dropbox or Anthropic being unreachable is an upstream failure, not the
-        # user's fault -- say so rather than returning a generic 500.
+        # user's fault -- say so with the status code rather than a generic 500.
+        # The cause is logged, never returned: these exceptions carry provider
+        # internals, and a Dropbox client error can quote the request it failed on.
+        logger.exception("upload pipeline failed for %s", filename)
         raise HTTPException(
-            status_code=502, detail=f"Couldn't process the file right now: {e}"
+            status_code=502, detail="Couldn't process the file right now. Try again."
         ) from e
 
     return UploadResponse(

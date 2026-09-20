@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Club, Event
+from app.schemas import PublicEvent
 
 router = APIRouter(prefix="/clubs", tags=["clubs"])
+
+# Every id in this database is a uuid4 (models._uuid). Constraining the path
+# rejects probe strings at the edge, before they reach a query, and turns a
+# malformed id into a 422 rather than a database round trip and a 404.
+CLUB_ID = Path(min_length=36, max_length=36, pattern=r"^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 
 
 @router.get("")
@@ -20,9 +26,24 @@ def list_clubs(session: Session = Depends(get_session)):
 
 
 @router.get("/{club_id}")
-def get_club(club_id: str, session: Session = Depends(get_session)):
+def get_club(club_id: str = CLUB_ID, session: Session = Depends(get_session)):
+    """One club plus the events a student may actually see.
+
+    `published` only, matching GET /events. This endpoint used to return every
+    row for the club, which meant a pending_review event -- an AI extraction we
+    deliberately did not trust enough to publish -- was reachable through the
+    club panel while the events feed correctly hid it. Same data, two answers.
+    """
     club = session.get(Club, club_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
-    events = session.exec(select(Event).where(Event.club_id == club_id)).all()
-    return {"club": club, "events": events, "similar": []}  # TODO: similar clubs
+    events = session.exec(
+        select(Event)
+        .where(Event.club_id == club_id, Event.status == "published")
+        .order_by(Event.start)
+    ).all()
+    return {
+        "club": club,
+        "events": [PublicEvent.model_validate(e, from_attributes=True) for e in events],
+        "similar": [],  # TODO: similar clubs
+    }

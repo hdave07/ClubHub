@@ -1,10 +1,17 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# A real answer to "what do you want out of university" is a sentence or two.
+# The cap is generous for a rambling student and still far below the point where
+# the blurb starts crowding out the candidate clubs in the rerank prompt -- an
+# unbounded field here is both a cost lever and the widest prompt-injection
+# surface in the app. Rejected by pydantic before any paid call is made.
+MAX_BLURB_CHARS = 2000
 
 
 class RecommendRequest(BaseModel):
-    blurb: str
+    blurb: str = Field(min_length=1, max_length=MAX_BLURB_CHARS)
 
 
 class EventLite(BaseModel):
@@ -20,6 +27,32 @@ class EventLite(BaseModel):
     start: datetime | None  # UTC; serialized as an ISO string
     location: str | None = None
     source: str  # sop | dropbox
+    source_file: str | None = None
+    dropbox_link: str | None = None
+
+
+class PublicEvent(BaseModel):
+    """Every event field the frontend renders, and nothing more.
+
+    Narrower than the Event row on purpose. `confidence` is an internal extraction
+    score and `status` is a workflow state; neither is a student's business, and
+    shipping them invites a reader to reason about rows we have not verified.
+    Organizer contact fields cannot leak here because the Event model has none --
+    the privacy rule in CLAUDE.md is enforced at the schema level, not by filtering.
+
+    Unlike EventLite this does carry `description`, because the club detail panel
+    has room to show it; EventLite feeds the compact graph/card path that does not.
+    """
+
+    id: str
+    club_id: str
+    title: str
+    start: datetime | None
+    end: datetime | None = None
+    location: str | None = None
+    description: str | None = None
+    rsvp_url: str | None = None
+    source: str
     source_file: str | None = None
     dropbox_link: str | None = None
 
