@@ -28,7 +28,7 @@ from sqlmodel import Session, select
 
 from app.models import Event, IngestLog
 from app.services.dropbox_store import InboxFile, download_file, get_shared_link, mime_type_for
-from app.services.extraction import ExtractionError, extract_file
+from app.services.extraction import ExtractedEvent, ExtractionError, extract_file
 from app.services.matcher import get_or_create_club
 
 
@@ -42,6 +42,12 @@ class IngestedEvent:
     location: str | None
     status: str
     dropbox_link: str | None
+    # Set only when status is pending_review: which field (date, or just time) a human needs to supply
+    # before this event can publish, and the model's raw local-time read (for pre-filling that prompt).
+    # See extraction.missing_fields -- the upload endpoint surfaces these so the person who just
+    # uploaded the file can confirm it immediately instead of the event sitting unreachable forever.
+    missing: list[str] = field(default_factory=list)
+    start_local: str | None = None
 
 
 @dataclass(frozen=True)
@@ -273,6 +279,7 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
         dropbox_link = None
 
     written: list[Event] = []
+    written_items: list[ExtractedEvent] = []  # parallel to `written`, for missing/start_local in the snapshot
     claimed: set[str] = set()
     reschedules: list[str] = []
     for item in extraction.events:
@@ -309,6 +316,7 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
         session.flush()  # assign the id before we snapshot it
         claimed.add(event.id)
         written.append(event)
+        written_items.append(item)
 
     _log(
         session,
@@ -337,8 +345,10 @@ def process_file(session: Session, file: InboxFile, *, force: bool = False) -> I
                 location=e.location,
                 status=e.status,
                 dropbox_link=e.dropbox_link,
+                missing=item.missing,
+                start_local=item.start_local,
             )
-            for e in written
+            for e, item in zip(written, written_items)
         ],
         club_id=club.id,
         club_name=club.name,

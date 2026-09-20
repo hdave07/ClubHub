@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { uploadFlier } from '@/lib/api'
 
 /** What the native picker offers. Phones list their camera and photo library for image types. */
@@ -47,7 +47,13 @@ function errorMessage(e) {
  */
 export function useFlierUpload({ resultClubIds, onPublished }) {
   const [state, setState] = useState({ phase: 'idle' })
-  const reset = useCallback(() => setState({ phase: 'idle' }), [])
+  // Bookkeeping for the confirm phase, mutated synchronously so two forms confirmed close together can't race
+  // (each form's callback would otherwise read a stale `state` from its own render).
+  const confirming = useRef(null) // { pending, mine, clubId, publishedCount } | null
+  const reset = useCallback(() => {
+    confirming.current = null
+    setState({ phase: 'idle' })
+  }, [])
 
   const upload = useCallback(
     async (file) => {
@@ -60,14 +66,26 @@ export function useFlierUpload({ resultClubIds, onPublished }) {
       try {
         const res = await uploadFlier(file)
         const clubId = res.club?.id != null ? String(res.club.id) : null
-        const published = (res.events ?? []).filter((e) => e.status === 'published')
-        if (clubId != null && resultClubIds.has(clubId) && published.length) {
+        const events = res.events ?? []
+        const published = events.filter((e) => e.status === 'published')
+        // Anything else came with `missing` (backend extraction.missing_fields) saying what to ask for: it goes to a
+        // confirm form for the uploader instead of sitting in review, and is never shown anywhere else.
+        const pending = events.filter((e) => e.status !== 'published')
+        const mine = clubId != null && resultClubIds.has(clubId)
+        if (mine && published.length) {
           onPublished(published.map((e) => ({ ...e, club_id: clubId, source: 'dropbox' })))
-          setState({ phase: 'idle' })
-          return
         }
         // Only reached after /upload returned 2xx, which is when the backend has stored the file in Dropbox (it does that
         // before reading the poster), so this is the first moment "Saved to Dropbox" is true.
+        if (pending.length) {
+          confirming.current = { pending, mine, clubId, publishedCount: published.length }
+          setState({ phase: 'confirm', pending, message: 'Saved to Dropbox.' })
+          return
+        }
+        if (mine && published.length) {
+          setState({ phase: 'idle' })
+          return
+        }
         setState({ phase: 'done', ok: published.length > 0, message: `Saved to Dropbox · ${res.message}` })
       } catch (e) {
         setState({ phase: 'error', message: errorMessage(e) })
@@ -76,5 +94,31 @@ export function useFlierUpload({ resultClubIds, onPublished }) {
     [resultClubIds, onPublished],
   )
 
-  return { state, upload, reset }
+  // One pending event was confirmed (published) by the student.
+  const confirmed = useCallback(
+    (eventId, updated) => {
+      const c = confirming.current
+      if (!c) return
+      c.pending = c.pending.filter((e) => e.id !== eventId)
+      c.publishedCount += 1
+      if (c.mine) onPublished([{ ...updated, club_id: c.clubId, source: 'dropbox' }])
+      if (c.pending.length) {
+        setState({ phase: 'confirm', pending: c.pending, message: 'Saved to Dropbox.' })
+        return
+      }
+      confirming.current = null
+      if (c.mine) {
+        setState({ phase: 'idle' })
+        return
+      }
+      setState({
+        phase: 'done',
+        ok: true,
+        message: `Saved to Dropbox · Added ${c.publishedCount} event${c.publishedCount === 1 ? '' : 's'}.`,
+      })
+    },
+    [onPublished],
+  )
+
+  return { state, upload, reset, confirmed }
 }

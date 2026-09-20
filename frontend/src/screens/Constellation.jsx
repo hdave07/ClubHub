@@ -262,6 +262,13 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
             <div className="flex items-center gap-4">
               <button
                 type="button"
+                onClick={() => window.open('/?view=directory', '_blank', 'noopener')}
+                className="rounded-sm text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Full Directory
+              </button>
+              <button
+                type="button"
                 aria-label="Remap your constellation"
                 onClick={onEdit}
                 className="rounded-sm text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -290,7 +297,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
               </div>
             </div>
           )}
-          <AddEventPanel state={flier.state} onClose={flier.reset} onAgain={openPicker} />
+          <AddEventPanel state={flier.state} onClose={flier.reset} onAgain={openPicker} onConfirmed={flier.confirmed} />
         </div>
 
         <input

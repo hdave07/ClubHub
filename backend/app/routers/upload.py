@@ -53,23 +53,26 @@ def _store_and_process(data: bytes, filename: str) -> IngestResult:
 
 
 def _describe(result: IngestResult) -> str:
+    """The `message` string. `missing` events never sit in an unreachable review queue -- they carry
+    which field to ask for (event.missing), and AddEventPanel prompts for it right on this response, so
+    the copy here says "confirm", not "review"."""
     if result.status != "processed":
         return _MESSAGES.get(result.status, "Something went wrong.")
 
     published = result.published_count
-    review = len(result.events) - published
+    unconfirmed = len(result.events) - published
     club = result.club_name or "this club"
 
-    if published and not review:
+    if published and not unconfirmed:
         return f"Added {published} event{'s' if published > 1 else ''} for {club}."
-    if published and review:
+    if published and unconfirmed:
         return (
             f"Added {published} event{'s' if published > 1 else ''} for {club}. "
-            f"{review} needs checking before it goes live."
+            f"{unconfirmed} needs a quick confirmation below."
         )
     return (
         f"We found {len(result.events)} event{'s' if len(result.events) > 1 else ''} "
-        f"for {club}, but couldn't confirm the details -- it's waiting for review."
+        f"for {club}, but couldn't read every detail -- confirm the rest below."
     )
 
 
@@ -128,6 +131,8 @@ async def upload_flier(file: UploadFile) -> UploadResponse:
                 status=e.status,
                 source_file=result.file.name,
                 dropbox_link=e.dropbox_link,
+                missing=e.missing,
+                start_local=e.start_local,
             )
             for e in result.events
         ],

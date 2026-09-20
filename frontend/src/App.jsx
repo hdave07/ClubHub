@@ -5,6 +5,7 @@ import { useRecommend } from '@/lib/useRecommend'
 import Blurb from '@/screens/Blurb'
 import Campus from '@/screens/Campus'
 import Constellation from '@/screens/Constellation'
+import Directory from '@/screens/Directory'
 import Major from '@/screens/Major'
 import Welcome from '@/screens/Welcome'
 
@@ -14,6 +15,11 @@ const LandingBackground = lazy(() => import('@/components/LandingBackground'))
 
 // Dev only: with ?previewData, open straight on the results screen. Remove after real data lands.
 const PREVIEW_DATA = import.meta.env.DEV && new URLSearchParams(window.location.search).has('previewData')
+
+// The Full Directory opens in its own browser tab (Constellation's "Full Directory" button does
+// window.open) rather than a step in this file's flow, so browsing/searching there can never touch this
+// tab's own graph. No router: one query param, same pattern as ?previewData above.
+const VIEW = new URLSearchParams(window.location.search).get('view')
 
 const STORAGE_KEY = 'campus-compass:input'
 const EMPTY_INPUT = { major: '', blurb_text: '' }
@@ -30,7 +36,7 @@ function loadInput() {
   return EMPTY_INPUT
 }
 
-function App() {
+function MainFlow() {
   const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'campus') // campus | welcome | major | blurb | results
   const [input, setInput] = useState(loadInput)
   // Reduced motion: no animated background (Welcome keeps its static stars).
@@ -92,6 +98,10 @@ function App() {
       </div>
     </div>
   )
+}
+
+function App() {
+  return VIEW === 'directory' ? <Directory /> : <MainFlow />
 }
 
 export default App

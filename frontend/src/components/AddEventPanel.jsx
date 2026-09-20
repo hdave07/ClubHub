@@ -1,17 +1,99 @@
 import { Check, X } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { confirmEvent } from '@/lib/api'
 import { motion, sky } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+
+/**
+ * One event extraction couldn't fully read: title and location came through, but `event.missing` (see
+ * backend/app/services/extraction.py's missing_fields) says which single piece didn't. Asks for exactly
+ * that piece -- a full date+time when nothing was legible, or just a time when the date was -- and
+ * publishes it immediately (POST /events/:id/confirm) rather than it sitting in pending_review forever.
+ * @param {{ event: object, onConfirmed: (eventId: string, updated: object) => void }} props
+ */
+function ConfirmEventForm({ event, onConfirmed }) {
+  const needsDate = event.missing?.includes('date') ?? true
+  // start_local is a bare date ("2026-09-25") in exactly the "missing time" case (see missing_fields):
+  // the model read a date but no time of day.
+  const knownDate = !needsDate ? event.start_local : null
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (!value || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await confirmEvent(event.id, needsDate ? value : `${knownDate}T${value}:00`)
+      onConfirmed(event.id, updated)
+    } catch (err) {
+      setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : "Couldn't save that.")
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+      <p className="truncate text-sm" title={event.title}>
+        {event.title}
+      </p>
+      <div className="flex items-center gap-2">
+        {needsDate ? (
+          <Input
+            type="datetime-local"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-label={`Date and time for ${event.title}`}
+            required
+            className="h-8 flex-1"
+          />
+        ) : (
+          <>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {new Date(`${knownDate}T00:00:00`).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+            <Input
+              type="time"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              aria-label={`Time for ${event.title}`}
+              required
+              className="h-8 flex-1"
+            />
+          </>
+        )}
+        <Button type="submit" size="sm" disabled={!value || busy}>
+          {busy ? 'Saving…' : 'Confirm'}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-foreground/90">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
 
 /**
  * What happened to the poster the student just chose: reading it, the server's answer, or a plain error. It is
  * feedback only: the "Drop a poster" button in the header opens the file picker, and this hangs under it. It never
  * promises an event will appear; the wording of a result comes from the server.
- * @param {{ state: { phase: 'idle' | 'uploading' | 'done' | 'error', name?: string, ok?: boolean, message?: string },
- *   onClose: () => void, onAgain: () => void, className?: string }} props
+ * A result the extraction couldn't fully read comes back as a `confirm` phase: one small form per event asking for
+ * just the missing date or time (POST /events/:id/confirm), which publishes it.
+ * @param {{ state: { phase: 'idle' | 'uploading' | 'confirm' | 'done' | 'error', name?: string, ok?: boolean,
+ *   message?: string, pending?: object[] },
+ *   onClose: () => void, onAgain: () => void, onConfirmed: (eventId: string, updated: object) => void,
+ *   className?: string }} props
  */
-export default function AddEventPanel({ state, onClose, onAgain, className }) {
+export default function AddEventPanel({ state, onClose, onAgain, onConfirmed, className }) {
   const { phase } = state
   useEffect(() => {
     if (phase === 'idle' || phase === 'uploading') return undefined
@@ -46,6 +128,30 @@ export default function AddEventPanel({ state, onClose, onAgain, className }) {
           </div>
           <p className="text-sm">Reading your poster…</p>
           <p className="max-w-full truncate text-xs text-muted-foreground">{state.name} · about 10 seconds</p>
+        </div>
+      ) : phase === 'confirm' ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm leading-snug text-muted-foreground">
+              {state.message}{' '}
+              {state.pending.length === 1
+                ? "We couldn't read this one clearly. Mind confirming it?"
+                : `We couldn't read ${state.pending.length} of these clearly. Mind confirming them?`}
+            </p>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className="rounded-sm p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X aria-hidden className="size-4" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            {state.pending.map((event) => (
+              <ConfirmEventForm key={event.id} event={event} onConfirmed={onConfirmed} />
+            ))}
+          </div>
         </div>
       ) : (
         <>

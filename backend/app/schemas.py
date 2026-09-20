@@ -60,6 +60,12 @@ class UploadedEvent(BaseModel):
     source: str = "dropbox"
     source_file: str
     dropbox_link: str | None
+    # Set only when status is pending_review: which field to ask for (see extraction.missing_fields) and
+    # the model's raw local-time read, so the upload UI can prompt for exactly the missing piece right
+    # away instead of the event sitting unreachable in pending_review forever. Confirm via
+    # POST /events/{id}/confirm.
+    missing: list[str] = []
+    start_local: str | None = None
 
 
 class UploadedClub(BaseModel):

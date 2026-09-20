@@ -27,6 +27,18 @@ export async function getClub(id, { signal } = {}) {
 }
 
 /**
+ * GET /clubs -> every club row (raw database rows, unranked). The Full Directory's browse list is built from
+ * this; display through toDirectoryClub (lib/directory.js), which whitelists fields the same way sanitizeClub
+ * does for the detail panel.
+ * @param {{ signal?: AbortSignal }} [opts]
+ * @returns {Promise<object[]>}
+ */
+export async function getClubs({ signal } = {}) {
+  const { data } = await api.get('/clubs', { signal })
+  return data
+}
+
+/**
  * GET /events?since= -> published events starting at or after `since` (raw database rows).
  * The backend compares `since` with naive UTC columns, so it is sent as naive UTC ("2026-09-19T23:40:00").
  * Display only through toLiveEvents (lib/events.js).
@@ -52,5 +64,21 @@ export async function uploadFlier(file) {
   const body = new FormData()
   body.append('file', file)
   const { data } = await api.post('/upload', body)
+  return data
+}
+
+/**
+ * POST /events/:id/confirm -- a human supplies the field extraction couldn't confidently read (see
+ * `missing` on an upload response event), publishing it immediately instead of it sitting in
+ * pending_review forever. `start` is local Toronto wall-clock time, ISO 8601 with no UTC offset --
+ * either a <input type="datetime-local">'s value as-is ("2026-09-24T19:00", no seconds) or a
+ * known-date + <input type="time"> combined by the caller ("2026-09-24T19:00:00"). The backend's
+ * to_utc() (datetime.fromisoformat) accepts both.
+ * @param {string} eventId
+ * @param {string} start
+ * @returns {Promise<object>} the updated (now published) event row
+ */
+export async function confirmEvent(eventId, start) {
+  const { data } = await api.post(`/events/${encodeURIComponent(eventId)}/confirm`, { start })
   return data
 }
