@@ -258,3 +258,38 @@ body {
     display: none;
   }
 }
+
+/* The outline around "Drop a poster": on, a double blink off, then on again, every 2.4 s (about 1 flash per second, well
+   under the 3 per second that photosensitivity guidelines allow). Reduced motion: a steady outline. */
+.poster-flicker {
+  animation: poster-flicker 2.4s linear infinite;
+}
+
+@keyframes poster-flicker {
+  0%,
+  52% {
+    opacity: 1;
+  }
+  54%,
+  60% {
+    opacity: 0;
+  }
+  62%,
+  68% {
+    opacity: 1;
+  }
+  70%,
+  78% {
+    opacity: 0;
+  }
+  80%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster-flicker {
+    animation: none;
+  }
+}

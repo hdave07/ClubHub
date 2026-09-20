@@ -268,15 +268,23 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
                 >
                   Remap
                 </button>
-                <button
-                  type="button"
-                  onClick={openPicker}
-                  disabled={uploading}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-[9px] text-sm leading-none font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
-                >
-                  <DropboxGlyph />
-                  Drop a poster
-                </button>
+                <span className="relative inline-flex">
+                  <button
+                    type="button"
+                    onClick={openPicker}
+                    disabled={uploading}
+                    className="peer inline-flex items-center gap-2 rounded-full bg-primary px-4 py-[9px] text-sm leading-none font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/85 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
+                  >
+                    <DropboxGlyph />
+                    Drop a poster
+                  </button>
+                  {/* A cream outline around the pill that blinks on and off to draw the eye (index.css). It steps aside
+                      for the keyboard focus ring and while an upload is running, and holds still under reduced motion. */}
+                  <span
+                    aria-hidden
+                    className="poster-flicker pointer-events-none absolute -inset-1 rounded-full border-[1.5px] border-primary peer-focus-visible:hidden peer-disabled:hidden"
+                  />
+                </span>
               </div>
               <p className="text-[11px] text-muted-foreground max-sm:hidden">Posters and PDFs become events · saved to Dropbox</p>
             </div>
