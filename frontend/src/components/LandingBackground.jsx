@@ -6,7 +6,7 @@ import { PredictiveArcCanvas } from '@designcodeio/threeui/components/Predictive
  * retuned for the landing page: slower and more saturated. Change the numbers here.
  * `speed` is a multiplier (1 = normal).
  */
-export const LANDING_PARTICLES = {
+const LANDING_PARTICLES = {
   variant: 'signal-particles',
   mode: 'dark',
   speed: 0.3,
