@@ -20,7 +20,7 @@ export const IDLE_DRIFT_MAX_HZ = 0.08
 
 // --- hover emphasis --------------------------------------------------------------------------------------------------
 export const HOVER_SCALE = 1.25 // size of the hovered star (selected stars use it too)
-export const NEIGHBOR_OPACITY = 0.85 // direct neighbors of the hovered star
+export const NEIGHBOR_OPACITY = 1 // direct neighbors of the hovered star: full strength, like the hovered star
 export const DIMMED_OPACITY = 0.4 // everything else (the constellation stays visible)
-export const TRANSITION_MS = 220 // fades and scale changes
-export const EDGE_REVEAL_MS = 280 // a connection drawing itself from the hovered star outward
+export const TRANSITION_MS = 180 // fades and scale changes (kept under 200)
+export const EDGE_REVEAL_MS = 180 // a connection drawing itself from the hovered star outward

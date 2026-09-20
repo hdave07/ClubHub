@@ -8,6 +8,7 @@ const SCROLL_DELAY = 200 // ms a graph hover must last before the list scrolls t
  * @param {{ clubs?: object[], selectedId?: string | null, hoveredId?: string | null, hoveredIds?: Set<string>,
  *   scrollToId?: string | null, highlightIds?: Set<string>, onSelect?: Function, onHover?: Function, loading?: boolean }} props
  * `hoveredIds`: every card to highlight (one club, or all clubs under a hovered outcome).
+ * `dimOthers`: while an outcome is hovered, the cards outside `hoveredIds` fade to match the dimmed graph.
  * `scrollToId`: a single club hovered in the graph; if its card is not fully visible the list scrolls to it after a
  * short delay (cancelled when the hover ends). Only this list scrolls, never the page.
  */
@@ -18,6 +19,7 @@ export default function ClubList({
   hoveredIds,
   scrollToId = null,
   highlightIds,
+  dimOthers = false,
   onSelect,
   onHover,
   loading,
@@ -65,6 +67,7 @@ export default function ClubList({
                 selected={club.id === selectedId}
                 hovered={club.id === hoveredId || (hoveredIds?.has(String(club.id)) ?? false)}
                 highlighted={highlightIds?.has(String(club.id)) ?? false}
+                dimmed={dimOthers && !!hoveredIds?.size && !hoveredIds.has(String(club.id))}
                 onSelect={onSelect}
                 onHover={onHover}
               />

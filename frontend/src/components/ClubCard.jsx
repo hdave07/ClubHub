@@ -3,8 +3,8 @@ import DropboxProvenance from '@/components/DropboxProvenance'
 import OutcomePill from '@/components/OutcomePill'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatEventTime } from '@/lib/format'
+import { DIMMED_OPACITY, TRANSITION_MS } from '@/lib/graphTuning'
 import { outcomeLabel } from '@/lib/labels'
-import { motion } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { normalizeOutcome } from '@/types'
 
@@ -99,11 +99,11 @@ function NextEvent({ event }) {
 }
 
 /**
- * @param {{ club: object, rank?: number, selected?: boolean, hovered?: boolean, highlighted?: boolean,
+ * @param {{ club: object, rank?: number, selected?: boolean, hovered?: boolean, highlighted?: boolean, dimmed?: boolean,
  *   onSelect?: (id: string) => void, onHover?: (id: string | null) => void }} props
  * `highlighted`: a new Dropbox event just arrived for this club (one restrained blue highlight, no loop).
  */
-export default function ClubCard({ club, rank, selected = false, hovered = false, highlighted = false, onSelect, onHover }) {
+export default function ClubCard({ club, rank, selected = false, hovered = false, highlighted = false, dimmed = false, onSelect, onHover }) {
   const keys = outcomeKeys(club.outcomes)
 
   return (
@@ -124,10 +124,10 @@ export default function ClubCard({ club, rank, selected = false, hovered = false
       onMouseLeave={() => onHover?.(null)}
       onFocus={() => onHover?.(club.id)}
       onBlur={() => onHover?.(null)}
-      style={{ transitionDuration: `${motion.base}ms` }}
+      style={{ transitionDuration: `${TRANSITION_MS}ms`, opacity: dimmed ? DIMMED_OPACITY : 1 }}
       className={cn(
         'relative isolate flex cursor-pointer gap-3 rounded-lg border px-4 py-3.5 outline-none',
-        'transition-[background-color,border-color,box-shadow]',
+        'transition-[background-color,border-color,box-shadow,opacity]',
         'focus-visible:ring-2 focus-visible:ring-ring',
         selected
           ? 'border-foreground bg-secondary'

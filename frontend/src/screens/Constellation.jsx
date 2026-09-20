@@ -266,6 +266,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
             loading={isLoading}
             selectedId={selectedId}
             hoveredIds={hoveredClubIds}
+            dimOthers={hoveredOutcome != null}
             scrollToId={scrollToId}
             highlightIds={highlightIds}
             onSelect={setSelectedId}
