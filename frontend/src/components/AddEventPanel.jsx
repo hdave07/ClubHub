@@ -1,5 +1,6 @@
-import { Check, FileUp, X } from 'lucide-react'
+import { Camera, Check, FolderOpen, Image as ImageIcon, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import DropboxLogo from '@/components/DropboxLogo'
 import { Button } from '@/components/ui/button'
 import { uploadFlier } from '@/lib/api'
 import { motion, sky } from '@/lib/theme'
@@ -37,7 +38,10 @@ function errorMessage(e) {
 export default function AddEventPanel({ open, onClose, resultClubIds, onPublished, className }) {
   const [state, setState] = useState({ phase: 'idle' }) // idle | uploading | done | error
   const [dragging, setDragging] = useState(false)
-  const input = useRef(null)
+  const [menu, setMenu] = useState(false) // the three ways to add a file
+  const browseInput = useRef(null)
+  const cameraInput = useRef(null)
+  const libraryInput = useRef(null)
   const panel = useRef(null)
 
   useEffect(() => {
@@ -76,7 +80,10 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
     }
   }
 
-  const pick = () => input.current?.click()
+  const choose = (ref) => {
+    setMenu(false)
+    ref.current?.click()
+  }
   const busy = state.phase === 'uploading'
 
   return (
@@ -87,7 +94,7 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
       aria-label="Add an event"
       style={{ animationDuration: `${motion.base}ms` }}
       className={cn(
-        'absolute top-full right-0 z-30 mt-2 flex w-[min(21rem,calc(100vw-3rem))] flex-col gap-3 rounded-xl border border-border bg-card p-4 outline-none',
+        'absolute top-full right-0 z-30 mt-2 flex w-[min(26rem,calc(100vw-3rem))] flex-col gap-3 rounded-xl border border-border bg-card p-4 outline-none',
         'shadow-[0_16px_48px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none',
         className,
       )}
@@ -109,18 +116,28 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
         </button>
       </div>
 
-      <input
-        ref={input}
-        type="file"
-        accept={[...ACCEPT, 'image/*'].join(',')}
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = '' // choosing the same file again still fires
-          if (file) send(file)
-        }}
-      />
+      {/* Browse: any allowed file. Camera: opens the rear camera on a phone. Library: the photo album. On a desktop
+          the last two fall back to the ordinary file dialog. */}
+      {[
+        [browseInput, [...ACCEPT, 'image/*'].join(','), undefined],
+        [cameraInput, 'image/*', 'environment'],
+        [libraryInput, 'image/*', undefined],
+      ].map(([ref, accept, capture], i) => (
+        <input
+          key={i}
+          ref={ref}
+          type="file"
+          accept={accept}
+          capture={capture}
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = '' // choosing the same file again still fires
+            if (file) send(file)
+          }}
+        />
+      ))}
 
       {state.phase === 'uploading' ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-border px-4 py-7 text-center" aria-live="polite">
@@ -146,7 +163,13 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
             </span>
           </p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={pick}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setState({ phase: 'idle' })
+                setMenu(true)
+              }}
+            >
               Add another
             </Button>
             <Button size="sm" variant="ghost" onClick={onClose}>
@@ -158,7 +181,8 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
         <>
           <button
             type="button"
-            onClick={pick}
+            aria-expanded={menu}
+            onClick={() => setMenu((m) => !m)}
             disabled={busy}
             onDragOver={(e) => {
               e.preventDefault()
@@ -171,23 +195,41 @@ export default function AddEventPanel({ open, onClose, resultClubIds, onPublishe
               send(e.dataTransfer.files?.[0])
             }}
             className={cn(
-              'flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-7 text-center outline-none',
+              'flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-9 text-center outline-none',
               'transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-              dragging ? 'border-foreground bg-secondary' : 'border-border hover:border-muted-foreground hover:bg-secondary',
+              dragging
+                ? 'border-dropbox bg-dropbox/15'
+                : 'border-dropbox/45 bg-dropbox/[0.07] hover:border-dropbox/80 hover:bg-dropbox/[0.12]',
             )}
             style={{ transitionDuration: `${motion.base}ms` }}
           >
-            <FileUp aria-hidden className={cn('size-5', dragging ? 'text-foreground' : 'text-muted-foreground')} />
-            <span className="text-sm">Drop a poster here</span>
-            <span className="text-xs text-muted-foreground">or choose a photo or file</span>
+            <DropboxLogo className="size-20 text-dropbox" />
+            <span className="text-base">Drop a poster here</span>
+            <span className="text-xs text-muted-foreground">or click to add one</span>
           </button>
-          {state.phase === 'error' ? (
+          {menu && (
+            <ul className="flex flex-col gap-1" aria-label="Add a poster from">
+              {[
+                [FolderOpen, 'Browse files', browseInput],
+                [Camera, 'Take a photo', cameraInput],
+                [ImageIcon, 'Photo library', libraryInput],
+              ].map(([Icon, label, ref]) => (
+                <li key={label}>
+                  <button
+                    type="button"
+                    onClick={() => choose(ref)}
+                    className="flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left text-sm outline-none hover:border-muted-foreground hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Icon aria-hidden className="size-4 text-muted-foreground" />
+                    {label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {state.phase === 'error' && (
             <p role="alert" className="text-xs text-foreground/90">
               {state.message}
-            </p>
-          ) : (
-            <p className="text-xs leading-snug text-muted-foreground">
-              PNG, JPG or PDF, up to 10 MB. It's saved to our Dropbox and linked from the event.
             </p>
           )}
         </>
