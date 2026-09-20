@@ -52,19 +52,66 @@ def normalize(name: str) -> str:
     return " ".join(t for t in cleaned.split() if t and t not in BOILERPLATE)
 
 
-def acronyms(name: str) -> set[str]:
-    """Short forms a club might be referred to by on a poster.
+def stated_acronyms(name: str) -> set[str]:
+    """Short forms the text actually prints, i.e. parenthesised ones.
 
-    Pulls parenthesised forms ("... (UTMIST)" -> "utmist") and builds the
-    initialism of the distinctive words. Posters often use only the short form,
-    and fuzzy-matching a 6-letter acronym against a 60-character official name
-    scores near zero, so this needs its own path.
+    "... (UTMIST)" -> {"utmist"}. These are evidence: somebody wrote the acronym
+    down next to the full name.
     """
     found = {m.group(1).lower().strip() for m in _PAREN_RE.finditer(name)}
-    words = normalize(name).split()
-    if len(words) > 1:
-        found.add("".join(w[0] for w in words))
     return {a for a in found if len(a) >= 2}
+
+
+def derived_acronym(name: str) -> str | None:
+    """The initialism this project *infers* from the distinctive words.
+
+    "Afro-Dance and Culture Club" -> "adc". A guess, not evidence -- see the
+    collision note in acronyms().
+    """
+    words = normalize(name).split()
+    if len(words) < 2:
+        return None
+    initials = "".join(w[0] for w in words)
+    return initials if len(initials) >= 2 else None
+
+
+def acronyms(name: str) -> set[str]:
+    """Every short form a club might be referred to by, stated or inferred.
+
+    Kept as the union for reporting and diagnostics. Matching must NOT use this
+    set on both sides: two unrelated clubs routinely derive the same initialism
+    ("Afro-Dance and Culture Club" and "Averroes Discourse Society ... Chapter"
+    are both "adc"), and because an acronym hit short-circuits the fuzzy path,
+    such a collision produced a confident wrong attachment. match_club() requires
+    at least one side to have *stated* the acronym.
+    """
+    found = stated_acronyms(name)
+    derived = derived_acronym(name)
+    if derived:
+        found.add(derived)
+    return found
+
+
+# A short name that is a strict token subset of a longer one scores 100 on
+# token_set_ratio -- the metric is computed over the token intersection, so the
+# longer name's extra words cost nothing. "Anthropology Students' Association"
+# normalises to "anthropology", which sits inside "anthropology graduate union"
+# and matched the Anthropology Graduate Student Union perfectly. Requiring the
+# shorter name to account for at least half the longer one's tokens keeps genuine
+# omissions ("Golden Z" for "Golden Z ... Chapter") while rejecting a single
+# shared word standing in for a whole name.
+MIN_SUBSET_COVERAGE = 0.5
+
+
+def _subset_inflated(guess_norm: str, club_norm: str) -> bool:
+    """Is this pair's score an artefact of one name nesting inside the other?"""
+    guess_tokens, club_tokens = set(guess_norm.split()), set(club_norm.split())
+    if not guess_tokens or not club_tokens or guess_tokens == club_tokens:
+        return False
+    if not (guess_tokens < club_tokens or club_tokens < guess_tokens):
+        return False  # they differ in both directions; ordinary fuzzy territory
+    smaller, larger = sorted((guess_tokens, club_tokens), key=len)
+    return len(smaller) / len(larger) < MIN_SUBSET_COVERAGE
 
 
 @dataclass(frozen=True)
@@ -97,11 +144,35 @@ def match_club(
         return MatchResult(None, 0.0, "none")
 
     guess_norm = normalize(name_guess)
-    guess_acros = acronyms(name_guess) | {guess_norm.replace(" ", "")}
 
-    # An acronym hit is decisive: "UTMIST" on a poster is not a coincidence.
+    # What the source literally printed: any parenthesised form, plus the whole
+    # distinctive remainder run together, which is how a bare "UTMIST" arrives.
+    guess_stated = stated_acronyms(name_guess) | (
+        {guess_norm.replace(" ", "")} if guess_norm else set()
+    )
+    guess_derived = derived_acronym(name_guess)
+
+    # Identical distinctive remainders, before the acronym paths, so that an
+    # ordinary match ("Poker Club" -> "University of Toronto Poker Club") is
+    # reported as a name match rather than an incidental acronym one. Callers log
+    # matched_on, so the label needs to mean something.
     for club in clubs:
-        if guess_acros & acronyms(club.name):
+        if guess_norm and normalize(club.name) == guess_norm:
+            return MatchResult(club, 100.0, "name")
+
+    # An acronym hit is decisive -- "UTMIST" on a poster is not a coincidence --
+    # but only when at least one side actually stated it. Two *inferred*
+    # initialisms agreeing is a coincidence, and a frequent one.
+    for club in clubs:
+        club_norm = normalize(club.name)
+        club_stated = stated_acronyms(club.name) | (
+            {club_norm.replace(" ", "")} if club_norm else set()
+        )
+        club_derived = derived_acronym(club.name)
+
+        if guess_stated & (club_stated | ({club_derived} if club_derived else set())):
+            return MatchResult(club, 100.0, "acronym")
+        if guess_derived and guess_derived in club_stated:
             return MatchResult(club, 100.0, "acronym")
 
     if not guess_norm:
@@ -118,12 +189,23 @@ def match_club(
         return MatchResult(None, 0.0, "none")
 
     # token_set_ratio so word order and extra words don't penalise a real match
-    # ("Data Science AI" vs "AI Data Science Society").
-    best = process.extractOne(guess_norm, by_norm.keys(), scorer=fuzz.token_set_ratio)
-    if best and best[1] >= threshold:
-        return MatchResult(by_norm[best[0]], float(best[1]), "name")
+    # ("Data Science AI" vs "AI Data Science Society"). Scored over every club
+    # rather than via extractOne because the subset-inflated pairs have to be
+    # discarded first -- one of them would otherwise win at 100 and hide the
+    # genuine runner-up.
+    scored = [
+        (fuzz.token_set_ratio(guess_norm, key), key)
+        for key in by_norm
+        if not _subset_inflated(guess_norm, key)
+    ]
+    if not scored:
+        return MatchResult(None, 0.0, "none")
 
-    return MatchResult(None, float(best[1]) if best else 0.0, "none")
+    score, key = max(scored)
+    if score >= threshold:
+        return MatchResult(by_norm[key], float(score), "name")
+
+    return MatchResult(None, float(score), "none")
 
 
 def find_club(

@@ -146,7 +146,7 @@ export default function Preview() {
       </Section>
 
       <Section title="Typography">
-        <h1 className="text-4xl">Your U of T Universe</h1>
+        <h1 className="text-4xl">ClubHub</h1>
         <p className="mt-3 max-w-prose text-muted-foreground">
           1,250 clubs are out there, waiting to be found. Why not by you? This is Inter body text on charcoal.
         </p>

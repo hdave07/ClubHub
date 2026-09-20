@@ -79,23 +79,12 @@ def fetch_group(post_id: int) -> dict:
     return json.loads(_get(f"{settings.sop_base_url}/wp/v2/group/{post_id}"))
 
 
-def fetch_events(per_page: int = 50) -> list[dict]:
-    """NOTE: uses httpx (unlike the rest of this module) -- not re-verified against
-    SOP's WAF for this task. If it 403s, port it to urllib.request like fetch_group.
-    """
-    import httpx
-
-    events: list[dict] = []
-    url = f"{settings.sop_base_url}/tribe/events/v1/events"
-    params: dict | None = {"per_page": per_page}
-    while url:
-        resp = httpx.get(url, params=params, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        events.extend(data.get("events", []))
-        url = data.get("next_rest_url")
-        params = None  # next_rest_url already carries query params
-    return events
+# SOP's event calendar (/tribe/events/v1/events) lives in
+# app/services/event_sources/sop_events.py, not here. This module syncs clubs; an
+# event needs the future-date filter, the publish gate and the organizer-contact
+# scrub that event_sources/runner.py applies, and none of that belongs in a club
+# scraper. Run it with:
+#     python -m app.services.event_sources.runner sop_events --dry-run
 
 
 def _norm(s: str) -> str:
