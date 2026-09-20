@@ -18,6 +18,7 @@ export default function Major({ major, onChange, onNext, onSkip }) {
           value={major}
           onChange={(e) => onChange(e.target.value)}
           placeholder="e.g. Economics"
+          className="dark:bg-card" // solid, so the background particles do not run through the text
           aria-label="Your major"
         />
         <datalist id="majors">
