@@ -167,4 +167,4 @@ ambiguous date (the in-app upload flow has one; the unattended watcher path does
 
 ## Team
 
-[Angela Koo](https://github.com/angbengi) · [Avi Patel](https://github.com/avi1277)· [Harini Dave](https://github.com/hdave07) · [James Romasco](https://github.com/Pufferfish-Kirby)
+[Angela Koo](https://github.com/angbengi) · [Avi Patel](https://github.com/avi1277) · [Harini Dave](https://github.com/hdave07) · [James Romasco](https://github.com/Pufferfish-Kirby)
