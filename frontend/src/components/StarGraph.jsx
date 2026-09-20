@@ -7,6 +7,7 @@ import StarEdge from '@/components/StarEdge'
 import { ClubNode, EventNode, OutcomeNode, YouNode } from '@/components/StarNode'
 import { DIMMED_OPACITY } from '@/lib/graphTuning'
 import { GraphViewContext } from '@/lib/graphView'
+import { useStarPhysics } from '@/lib/useStarPhysics'
 import { computeHighlight } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
 import { clubBrightness, motion, nodeStyles, sky } from '@/lib/theme'
@@ -68,6 +69,15 @@ export default function StarGraph({
 }) {
   const built = useMemo(() => (graphProp ? null : layoutGraph(response)), [graphProp, response])
   const graph = graphProp ?? built
+
+  // Cursor physics and idle drift: a frame loop outside React (lib/useStarPhysics.js). It needs the current viewport
+  // to turn screen pixels into flow units, so it is kept in a ref, never in state.
+  const rootRef = useRef(null)
+  const viewRef = useRef({ x: 0, y: 0, zoom: 1 })
+  useStarPhysics(rootRef, graph, viewRef)
+  useEffect(() => {
+    if (import.meta.env.DEV) window.__starGraphRenders = (window.__starGraphRenders ?? 0) + 1 // dev only: render counter for tests
+  })
 
   // Refit only when the panel opens or closes (with a short glide), not on first render or when switching clubs.
   const [flow, setFlow] = useState(null)
@@ -153,7 +163,6 @@ export default function StarGraph({
 
   // The hovered constellation's connections, applied straight to the (persistent) edge elements so their CSS
   // transitions run: the gold line draws in, the rest of the faint lines ease down. See StarEdge.
-  const rootRef = useRef(null)
   useEffect(() => {
     const root = rootRef.current
     if (!root) return undefined
@@ -177,6 +186,14 @@ export default function StarGraph({
     apply()
     return () => cancelAnimationFrame(raf)
   }, [graph, active, baseNodes])
+
+  const handleInit = useCallback((instance) => {
+    viewRef.current = instance.getViewport()
+    setFlow(instance)
+  }, [])
+  const handleMove = useCallback((_, viewport) => {
+    viewRef.current = viewport
+  }, [])
 
   // Graph -> card: a club or its event lights that club, an outcome lights every club under it, "you" does nothing.
   const enter = useCallback(
@@ -209,7 +226,8 @@ export default function StarGraph({
           colorMode="dark"
           fitView
           fitViewOptions={{ padding: fitPadding(panelOpen) }}
-          onInit={setFlow}
+          onInit={handleInit}
+        onMove={handleMove}
           attributionPosition="bottom-left"
           minZoom={0.4}
           maxZoom={1.6}
