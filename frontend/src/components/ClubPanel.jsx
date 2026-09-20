@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ArrowUpRight, Info, Mail, X } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import OutcomePill from '@/components/OutcomePill'
+import PosterInvite from '@/components/PosterInvite'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isLimitedSummary, scrubText, toEventLite } from '@/lib/club'
@@ -174,7 +175,10 @@ export default function ClubPanel({ club, rank, detail, loading, error, notFound
               <Skeleton className="h-3 w-1/2" />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No upcoming events listed yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No upcoming events yet
+              <PosterInvite />
+            </p>
           )}
         </Section>
 

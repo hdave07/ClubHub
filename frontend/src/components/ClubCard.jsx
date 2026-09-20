@@ -1,6 +1,7 @@
 import { CalendarDays, CalendarX2, Info } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import OutcomePill from '@/components/OutcomePill'
+import PosterInvite from '@/components/PosterInvite'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatEventTime } from '@/lib/format'
 import { DIMMED_OPACITY, TRANSITION_MS } from '@/lib/graphTuning'
@@ -79,7 +80,10 @@ function NextEvent({ event }) {
     return (
       <div className="flex items-center gap-2 border-t border-border pt-2.5 text-xs text-muted-foreground/80">
         <CalendarX2 aria-hidden className="size-3.5 shrink-0" />
-        No upcoming events yet
+        <span>
+          No upcoming events yet
+          <PosterInvite />
+        </span>
       </div>
     )
   }
