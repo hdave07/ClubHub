@@ -87,6 +87,6 @@ export function normalizeOutcome(value) {
  * @property {{ nodes: GraphNode[], edges: GraphEdge[] }} graph
  */
 
-/** @typedef {"welcome" | "major" | "blurb" | "results"} Step */
+/** @typedef {"campus" | "welcome" | "major" | "blurb" | "results"} Step */
 
 /** @typedef {{ major: string, blurb_text: string }} UserInput */

@@ -1,33 +1,11 @@
 import { Badge } from '@/components/ui/badge'
+import StaticStars from '@/components/StaticStars'
 import { Button } from '@/components/ui/button'
-import { sky } from '@/lib/theme'
-
-// [left %, top %] of the CSS-only stars
-const STARS = [
-  [12, 18], [27, 72], [41, 33], [58, 14], [66, 58], [79, 27],
-  [88, 80], [8, 55], [35, 88], [92, 9], [52, 66], [73, 45],
-  [19, 40], [47, 8], [84, 60], [61, 90],
-]
 
 export default function Welcome({ onExplore }) {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 text-center">
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        {STARS.map(([x, y], i) => (
-          <span
-            key={i}
-            className="twinkle absolute rounded-full"
-            style={{
-              left: `${x}%`,
-              top: `${y}%`,
-              width: i % 3 === 0 ? 3 : 2,
-              height: i % 3 === 0 ? 3 : 2,
-              background: sky.stars,
-              animationDelay: `${(i % 5) * 0.25}s`,
-            }}
-          />
-        ))}
-      </div>
+      <StaticStars />
 
       <p className="relative text-xs tracking-[0.3em] text-muted-foreground">WELCOME TO</p>
       <h1 className="relative mt-3 text-5xl md:text-6xl">ClubHub</h1>

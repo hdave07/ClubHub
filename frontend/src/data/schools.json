@@ -1,0 +1,12 @@
+[
+  { "id": "uoft", "name": "University of Toronto", "available": true },
+  { "id": "brown", "name": "Brown University", "available": false },
+  { "id": "cornell", "name": "Cornell University", "available": false },
+  { "id": "mit", "name": "MIT", "available": false },
+  { "id": "bu", "name": "Boston University", "available": false },
+  { "id": "northeastern", "name": "Northeastern University", "available": false },
+  { "id": "rochester", "name": "University of Rochester", "available": false },
+  { "id": "harvard", "name": "Harvard University", "available": false },
+  { "id": "mcgill", "name": "McGill University", "available": false },
+  { "id": "ubc", "name": "University of British Columbia", "available": false }
+]

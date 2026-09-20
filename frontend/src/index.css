@@ -210,3 +210,51 @@ body {
     animation: arrival-static 3s linear 1 forwards;
   }
 }
+
+/* Horizontal scroll of school names (SchoolMarquee). The track holds the list twice and slides by half its own
+   width, so the loop is seamless. Hover pauses it. Reduced motion: it stops and can be scrolled by hand. */
+.school-marquee {
+  overflow: hidden;
+}
+
+.school-marquee-track {
+  display: flex;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  animation: school-marquee 60s linear infinite;
+}
+
+.school-marquee-track > li {
+  flex: none;
+  padding: 0 1.75rem;
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  color: var(--muted-foreground);
+}
+
+.school-marquee:hover .school-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes school-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .school-marquee {
+    overflow-x: auto;
+  }
+
+  .school-marquee-track {
+    animation: none;
+  }
+
+  .school-marquee-copy {
+    display: none;
+  }
+}

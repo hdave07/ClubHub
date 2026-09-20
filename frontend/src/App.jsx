@@ -3,6 +3,7 @@ import { buildBlurb } from '@/lib/blurb'
 import { motion } from '@/lib/theme'
 import { useRecommend } from '@/lib/useRecommend'
 import Blurb from '@/screens/Blurb'
+import Campus from '@/screens/Campus'
 import Constellation from '@/screens/Constellation'
 import Major from '@/screens/Major'
 import Welcome from '@/screens/Welcome'
@@ -30,7 +31,7 @@ function loadInput() {
 }
 
 function App() {
-  const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'welcome') // welcome | major | blurb | results
+  const [step, setStep] = useState(PREVIEW_DATA ? 'results' : 'campus') // campus | welcome | major | blurb | results
   const [input, setInput] = useState(loadInput)
   // Reduced motion: no animated background (Welcome keeps its static stars).
   const [animate] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
@@ -63,6 +64,7 @@ function App() {
         className="relative z-10 animate-in fade-in"
         style={{ animationDuration: `${motion.base}ms` }}
       >
+        {step === 'campus' && <Campus onChoose={() => setStep('welcome')} />}
         {step === 'welcome' && <Welcome onExplore={() => setStep('major')} />}
         {step === 'major' && (
           <Major
