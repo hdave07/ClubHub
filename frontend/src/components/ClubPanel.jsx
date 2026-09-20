@@ -3,6 +3,7 @@ import { ArrowUpRight, Info, Mail, X } from 'lucide-react'
 import DropboxProvenance from '@/components/DropboxProvenance'
 import OutcomePill from '@/components/OutcomePill'
 import PosterInvite from '@/components/PosterInvite'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isLimitedSummary, scrubText, toEventLite } from '@/lib/club'
@@ -134,7 +135,10 @@ function EventDetail({ event }) {
  * Never shows organizer contacts: `detail` comes from sanitizeClub in lib/club.js.
  * @param {{ club: object, rank?: number, detail: import('@/lib/club').ClubDetail | null, loading: boolean,
  *   error: Error | null, notFound?: boolean, selectedEventId?: string | null, onSelectEvent?: (id: string) => void,
- *   onRetry: () => void, onClose: () => void }} props
+ *   onRetry: () => void, onClose: () => void,
+ *   mapAction?: { label: string, onClick: () => void, variant?: string, disabled?: boolean, icon?: import('react').ReactNode } | null }} props
+ * `mapAction`: the Directory's "Add to your map" / the constellation's "Remove from your map" (lib/myClubs.js) --
+ * left to the caller since what it does (and whether it's even offered) differs by screen.
  */
 export default function ClubPanel({
   club,
@@ -147,6 +151,7 @@ export default function ClubPanel({
   onSelectEvent,
   onRetry,
   onClose,
+  mapAction = null,
 }) {
   const scrollRef = useRef(null)
 
@@ -197,7 +202,10 @@ export default function ClubPanel({
           <span className="shrink-0 pt-[7px] text-xs text-muted-foreground tabular-nums">{String(rank).padStart(2, '0')}</span>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="text-xl leading-tight">{club.name}</h3>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-xl leading-tight">{club.name}</h3>
+            {club._addedByUser && <Badge variant="secondary">Added by you</Badge>}
+          </div>
           {keys.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {keys.map((k) => (
@@ -226,6 +234,21 @@ export default function ClubPanel({
           <TabButton active={tab === 'event'} onClick={() => setTab('event')}>
             Event
           </TabButton>
+        </div>
+      )}
+
+      {mapAction && (
+        <div className="border-b border-border px-5 py-2.5">
+          <Button
+            size="sm"
+            variant={mapAction.variant ?? 'outline'}
+            disabled={mapAction.disabled}
+            onClick={mapAction.onClick}
+            className="w-full justify-center"
+          >
+            {mapAction.icon}
+            {mapAction.label}
+          </Button>
         </div>
       )}
 

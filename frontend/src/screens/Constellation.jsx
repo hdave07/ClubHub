@@ -9,6 +9,7 @@ import Mascot from '@/components/Mascot'
 import PosterInfo from '@/components/PosterInfo'
 import StarField from '@/components/StarField'
 import StarGraph from '@/components/StarGraph'
+import UndoToast from '@/components/UndoToast'
 import { Button } from '@/components/ui/button'
 import { clubIdsForPulse } from '@/lib/buildGraph'
 import { sanitizeClub } from '@/lib/club'
@@ -17,6 +18,7 @@ import { SHOW_MASCOT } from '@/lib/flags'
 import { sky } from '@/lib/theme'
 import { clubIdsUnderOutcome } from '@/lib/highlight'
 import { layoutGraph } from '@/lib/layout'
+import { applyMyClubs, useMyClubs } from '@/lib/myClubs'
 import { PosterPickerContext } from '@/lib/posterPicker'
 import { useClub } from '@/lib/useClub'
 import { cn } from '@/lib/utils'
@@ -61,6 +63,7 @@ function GraphPanel({
   rank,
   panel,
   onClose,
+  onRemove,
   reserveMascot,
 }) {
   return (
@@ -98,6 +101,7 @@ function GraphPanel({
           onSelectEvent={(eventId) => onSelectEvent?.(club.id, eventId)}
           onRetry={panel.retry ?? noop}
           onClose={onClose}
+          mapAction={{ label: 'Remove from your map', onClick: () => onRemove(club), variant: 'ghost' }}
         />
       )}
     </div>
@@ -142,7 +146,29 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
 
   const isLoading = USE_PREVIEW_DATA ? previewClubs === null : loading
   const err = USE_PREVIEW_DATA ? null : error
-  const matched = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+  const rawMatched = useMemo(() => (USE_PREVIEW_DATA ? previewClubs : data?.clubs) ?? [], [previewClubs, data])
+
+  // "Your map": manual adds from the Full Directory (its own tab) and removals of a club you weren't into,
+  // synced live via lib/myClubs.js. Applied on top of the reranked match before anything downstream (live-event
+  // polling, the graph, the list) sees it.
+  const { addedClubs, removedIds, addClub, removeClub, undoRemove, setMapSize } = useMyClubs()
+  const matched = useMemo(() => applyMyClubs(rawMatched, { addedClubs, removedIds }), [rawMatched, addedClubs, removedIds])
+  const [removeToast, setRemoveToast] = useState(null)
+  const handleRemove = useCallback(
+    (club) => {
+      removeClub(club.id)
+      selectClub(null) // the panel can't keep showing a club that just left the map
+      setRemoveToast({ club, wasUserAdded: !!club._addedByUser })
+    },
+    [removeClub, selectClub],
+  )
+  const undoLastRemove = useCallback(() => {
+    if (!removeToast) return
+    if (removeToast.wasUserAdded) addClub(removeToast.club)
+    else undoRemove(removeToast.club.id)
+    setRemoveToast(null)
+  }, [removeToast, addClub, undoRemove])
+  const dismissRemoveToast = useCallback(() => setRemoveToast(null), [])
 
   // Live Dropbox arrivals (main plan flow 3): merged into the cards, the graph and the panel; each one gets a single
   // blue highlight. Preview mode has no backend to poll; arrivals there come from the dev "Simulate drop".
@@ -162,6 +188,9 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
   })
   const clubs = useMemo(() => matched.map((c) => applyArrivals(c, arrivals)), [matched, arrivals])
   const highlightIds = useMemo(() => clubIdsForPulse(clubs, pulseIds), [clubs, pulseIds])
+  // The Full Directory (a separate tab) can't see this tab's match list, only lib/myClubs.js's shared store --
+  // so it needs the current map size from here to know when to disable "Add" at the graph's MAX_CLUBS cap.
+  useEffect(() => setMapSize(clubs.length), [clubs.length, setMapSize])
 
   const dismissToast = useCallback((key) => setToasts((prev) => prev.filter((t) => t.key !== key)), [])
   const openFromToast = useCallback(
@@ -380,6 +409,7 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
               rank={selectedIndex + 1}
               panel={panel}
               onClose={closePanel}
+              onRemove={handleRemove}
               reserveMascot={SHOW_MASCOT}
             />
           </div>
@@ -399,6 +429,14 @@ export default function Constellation({ data, loading, error, retry, onEdit }) {
           onOpen={openFromToast}
           onDismiss={dismissToast}
         />
+
+        {removeToast && (
+          <UndoToast
+            message={`Removed ${removeToast.club.name} from your map`}
+            onUndo={undoLastRemove}
+            onDismiss={dismissRemoveToast}
+          />
+        )}
       </div>
     </PosterPickerContext.Provider>
   )
