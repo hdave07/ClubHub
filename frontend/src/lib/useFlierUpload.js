@@ -66,7 +66,9 @@ export function useFlierUpload({ resultClubIds, onPublished }) {
           setState({ phase: 'idle' })
           return
         }
-        setState({ phase: 'done', ok: published.length > 0, message: res.message })
+        // Only reached after /upload returned 2xx, which is when the backend has stored the file in Dropbox (it does that
+        // before reading the poster), so this is the first moment "Saved to Dropbox" is true.
+        setState({ phase: 'done', ok: published.length > 0, message: `Saved to Dropbox · ${res.message}` })
       } catch (e) {
         setState({ phase: 'error', message: errorMessage(e) })
       }
